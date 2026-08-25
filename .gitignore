@@ -1,14 +1,28 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python environments and generated metadata
+.venv/
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.venv/
-venv/
-.env
-.DS_Store
-logs/*.log
-data/
-!data/.gitkeep
-.ipynb_checkpoints/
 *.egg-info/
-build/
-dist/
+
+# Test, coverage, and tooling artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local RAG uploads, indexes, and registry
+data/raw/
+data/vector_store/
+data/ingest_registry.json
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/

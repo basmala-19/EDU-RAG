@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     embedding_device: str = "cpu"
     vector_store: str = "chroma"
     chroma_path: str = "data/vector_store/chroma"
+    # Disable Chroma's anonymous product telemetry by default. It is unnecessary for
+    # local deployments and avoids background telemetry errors from old Chroma clients.
+    chroma_anonymized_telemetry: bool = False
     top_k: int = 5
     candidate_multiplier: int = 8
     # Floor on the raw dense-search fetch size, independent of top_k/candidate_multiplier.
@@ -31,6 +34,16 @@ class Settings(BaseSettings):
     max_context_chars: int = 6000
     max_history_chars: int = 3500
     max_session_turns: int = 6
+    # In-memory session store bounds. Sessions idle longer than session_ttl_seconds are
+    # evicted (both lazily on access and by a periodic background sweep started at app
+    # startup); max_sessions is a hard cap enforced via LRU eviction as a safety net so
+    # a burst of session creation can never grow the store unbounded even inside the TTL
+    # window. This store is per-process/in-memory — if you ever run more than one worker
+    # or replica, sessions won't be shared across them and you'd want an external store
+    # (e.g. Redis) instead; not needed for a single-instance deployment.
+    session_ttl_seconds: int = 3600
+    max_sessions: int = 10000
+    session_sweep_interval_seconds: int = 300
     # Lightweight deterministic reranking.
     semantic_weight: float = 0.30
     question_weight: float = 0.10
@@ -47,6 +60,14 @@ class Settings(BaseSettings):
     # grounding verdict comes from the model's self-reported status, not this pre-check.
     min_reranker_score_floor: float = 0.15
     min_retrieval_confidence_floor: float = 0.15
+    # When the plain (un-augmented) query already retrieves with confidence at or above
+    # this bar, skip the second, history/lesson-context-augmented retrieval entirely —
+    # a clearly strong direct match is extremely unlikely to be beaten by the augmented
+    # query, so paying for a second embed + dense/keyword/question query + rerank pass
+    # buys nothing in that case. Only genuinely ambiguous follow-ups (which score below
+    # this on the plain query) still pay for the second retrieval, which is exactly the
+    # case where it actually changes the answer.
+    skip_contextual_retrieval_confidence: float = 0.75
     reranker_enabled: bool = True
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     reranker_candidates: int = 60
@@ -54,8 +75,9 @@ class Settings(BaseSettings):
     # Question index is enabled by default.
     question_index_enabled: bool = True
     max_questions_per_chunk: int = 4
-    # Local generation through Ollama.
-    generation_backend: str = "ollama"
+    # Generation backend. Defaults to Groq (cloud, fast, no local model to manage).
+    # Set to "ollama" to run generation fully local instead.
+    generation_backend: str = "groq"
     groq_api_key: str | None = None
     groq_model: str = "openai/gpt-oss-120b"
     groq_base_url: str = "https://api.groq.com/openai/v1"

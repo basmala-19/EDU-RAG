@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import secrets
@@ -7,6 +8,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
@@ -80,6 +82,50 @@ structure_service = CurriculumStructureService(ingestion_service.store)
 ingest_registry = IngestRegistry()
 UPLOAD_DIR = Path("data/raw/uploads")
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+
+@app.on_event("startup")
+async def _warm_up_models() -> None:
+    """Load the embedding model and reranker once at boot instead of on the first
+    real request. Without this, whichever user's request happens to be first pays
+    the full multi-second model-load cost (and, under concurrent first requests,
+    risks loading the same model twice). Runs in the threadpool so it never blocks
+    the event loop, and failures here are logged but never crash startup — /api/rag/health
+    already surfaces embedding/model availability, so we don't duplicate that here.
+    """
+    def _load() -> None:
+        try:
+            retrieval_service.embedder.encode(["warm-up"])
+        except Exception:
+            logger.exception("Embedding model warm-up failed")
+        try:
+            settings = get_settings()
+            if settings.reranker_enabled:
+                from src.infrastructure.ranking import _get_reranker
+                ce = _get_reranker(settings.reranker_model, settings.embedding_device)
+                ce.predict([("warm-up", "warm-up")], show_progress_bar=False)
+        except Exception:
+            logger.exception("Reranker warm-up failed")
+
+    await run_in_threadpool(_load)
+    settings = get_settings()
+    asyncio.create_task(_session_sweep_loop(settings.session_sweep_interval_seconds))
+
+
+async def _session_sweep_loop(interval_seconds: int) -> None:
+    """Periodically evict idle/expired sessions even when there's no incoming traffic
+    to trigger the lazy sweep in LearningSessionStore.get()/ensure(). Runs for the life
+    of the process; failures are logged and never crash the loop or the app."""
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            removed = session_store.sweep()
+            if removed:
+                logger.info("session_sweep removed=%d", removed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Session sweep iteration failed")
 
 
 @app.get("/api/rag/health", response_model=HealthResponse, tags=["system"], summary="Health check", description="Returns the readiness status of embeddings and the vector store.")
@@ -225,7 +271,15 @@ async def rag_upload(file: UploadFile = File(..., description="Document to index
         if force_reingest:
             ingest_registry.forget(content_hash)
 
-        result = ingestion_service.ingest(target, None, "v1", file_reference_id=file_reference_id, extra_metadata={})
+        # ingestion_service.ingest() is CPU/IO-heavy (parsing, chunking, embedding
+        # hundreds of chunks). Running it directly here would block the single
+        # asyncio event loop for the whole duration, freezing every other
+        # concurrent request (including unrelated /api/rag/response calls and
+        # /api/rag/health) until this upload finishes. Offload it to FastAPI's
+        # threadpool so the event loop stays free for everyone else.
+        result = await run_in_threadpool(
+            ingestion_service.ingest, target, None, "v1", file_reference_id=file_reference_id, extra_metadata={}
+        )
         result_dump = result.model_dump()
         ingest_registry.register(content_hash, {
             "file_reference_id": file_reference_id,
@@ -476,7 +530,7 @@ def rag_response(request: ResponseRequest) -> ResponsePayload:
         best_confidence = _top_confidence(results)
         used_query = plain_query
 
-        if contextual_query != plain_query:
+        if contextual_query != plain_query and best_confidence < settings.skip_contextual_retrieval_confidence:
             ctx_results = _run_retrieval(contextual_query)
             ctx_confidence = _top_confidence(ctx_results)
             if ctx_confidence > best_confidence:

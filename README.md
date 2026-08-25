@@ -50,29 +50,24 @@ Ollama / Groq generation             (src/application/generation.py)
 Grounded response + evidence sources
 ```
 
-## Run it — VS Code
+## Run it
 
-**Prerequisites:** Python 3.11+, [Ollama](https://ollama.com) installed locally (or a Groq
+**Prerequisites:** Python **3.11** (required on Windows for ChromaDB), [Ollama](https://ollama.com) installed locally (or a Groq
 API key if you'd rather use that as the generation backend).
 
-1. **Open the folder in VS Code**
-   `File → Open Folder…` → select `CurriculumRAG/`.
-   Install the Microsoft **Python** extension if prompted.
+1. **Open a terminal in the project folder**
 
-2. **Create and select a virtual environment**
-   Open a terminal in VS Code (`` Ctrl+` ``) and run:
+2. **Install `uv`, then create a virtual environment**
 
    ```bash
-   python -m venv .venv
+   pip install uv
+   uv venv --python 3.11
    ```
-
-   Then `Ctrl+Shift+P` → **Python: Select Interpreter** → pick `.venv`. VS Code will use
-   this venv for every terminal you open afterward, and for the built-in test runner.
 
 3. **Install dependencies**
 
    ```bash
-   pip install -e ".[test]"
+   uv pip install -r requirements.txt
    ```
 
 4. **Configure environment**
@@ -98,12 +93,11 @@ API key if you'd rather use that as the generation backend).
 
    Check it's running with `ollama ps` in another terminal.
 
-6. **Run the API** — either:
-   - Press **F5** (uses the `.vscode/launch.json` config included in this project), or
-   - From the terminal:
-     ```bash
-     uvicorn src.interfaces.api.app:app --reload
-     ```
+6. **Run the API**
+
+   ```bash
+   uv run --with-requirements requirements.txt uvicorn src.interfaces.api.app:app --reload
+   ```
 
    The API is now at `http://127.0.0.1:8000` — interactive docs at
    `http://127.0.0.1:8000/docs`, and the testing console at `http://127.0.0.1:8000/console`.
@@ -112,21 +106,21 @@ API key if you'd rather use that as the generation backend).
    or from the terminal:
 
    ```bash
-   pytest -q
+   uv run --with-requirements requirements.txt pytest -q
    ```
 
-### Alternative: Docker
+## Generation backend
 
-```bash
-docker compose up --build
-```
+This service uses **Groq** for generation by default (cloud, OpenAI-compatible, fast).
+Set `GROQ_API_KEY` in `.env` — get one from https://console.groq.com/keys. The model used
+is controlled by `GROQ_MODEL` (defaults to `openai/gpt-oss-120b`).
 
-Same `.env` file is used; the API is published on `http://localhost:8000`.
+If `GROQ_API_KEY` is unset and `ALLOW_EXTRACTIVE_FALLBACK=true`, the service falls back to
+an extractive answer (the top retrieved passage) instead of a real generated one.
 
-## Ollama
+### Alternative: Ollama (fully local)
 
-This service uses Ollama for generation by default so it can stay fully local and avoid
-a paid API during development.
+Set `GENERATION_BACKEND=ollama` and `OLLAMA_MODEL=<your-model>` in `.env`, then:
 
 ```bash
 ollama pull <your-model>

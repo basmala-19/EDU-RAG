@@ -21,7 +21,14 @@ class VectorStore:
         self.question_collection = None
         try:
             import chromadb
-            self.client = chromadb.PersistentClient(path=self.settings.chroma_path)
+            from chromadb.config import Settings as ChromaSettings
+
+            self.client = chromadb.PersistentClient(
+                path=self.settings.chroma_path,
+                settings=ChromaSettings(
+                    anonymized_telemetry=self.settings.chroma_anonymized_telemetry,
+                ),
+            )
             self.collection = self.client.get_or_create_collection("curriculum_chunks", metadata={"hnsw:space": "cosine"})
             self.parent_collection = None
             self.question_collection = self.client.get_or_create_collection("curriculum_questions", metadata={"hnsw:space": "cosine"})
@@ -37,6 +44,11 @@ class VectorStore:
         self.local_path = Path("data/vector_store/local_index.json")
         self.parent_path = Path("data/vector_store/parent_index.json")
         self.question_path = Path("data/vector_store/question_index.json")
+        # Cache of BM25 corpus stats (tokenized docs + df + avgdl) so query_keywords()
+        # doesn't retokenize the whole matching corpus and recompute IDF on every
+        # single question. Keyed by (filters, corpus size) so it's invalidated
+        # automatically whenever new documents are ingested anywhere in the store.
+        self._bm25_cache: dict[tuple, tuple[list[dict[str, Any]], list[list[str]], dict[str, int], float]] = {}
 
     @staticmethod
     def _chroma_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -162,26 +174,29 @@ class VectorStore:
         return scored[:top_k]
 
 
-    def query_keywords(self, query: str, filters: dict[str, Any], top_k: int) -> list[dict[str, Any]]:
-        """BM25-style lexical retrieval for exact curriculum terminology."""
+    def _bm25_corpus(self, filters: dict[str, Any]) -> tuple[list[dict[str, Any]], list[list[str]], dict[str, int], float]:
+        """Build (or reuse from cache) the tokenized corpus + BM25 stats for a filter set."""
+        cache_key = (tuple(sorted(filters.items())), self._corpus_size())
+        cached = self._bm25_cache.get(cache_key)
+        if cached is not None:
+            return cached
         if self.collection is not None:
             where = self._chroma_where(filters)
             total = self.collection.count()
             if total <= 0:
-                return []
-            kwargs: dict[str, Any] = {"limit": total, "include": ["documents", "metadatas"]}
-            if where:
-                kwargs["where"] = where
-            out = self.collection.get(**kwargs)
-            rows = [{"id": out["ids"][i], "document": out["documents"][i], "metadata": (out["metadatas"][i] or {})} for i in range(len(out["ids"]))]
+                rows: list[dict[str, Any]] = []
+            else:
+                kwargs: dict[str, Any] = {"limit": total, "include": ["documents", "metadatas"]}
+                if where:
+                    kwargs["where"] = where
+                out = self.collection.get(**kwargs)
+                rows = [{"id": out["ids"][i], "document": out["documents"][i], "metadata": (out["metadatas"][i] or {})} for i in range(len(out["ids"]))]
         else:
             if not self.local_path.exists():
-                return []
-            payload = json.loads(self.local_path.read_text(encoding="utf-8"))
-            rows = [r for r in payload if self._matches(r.get("metadata", {}), filters)]
-        q_terms = self._lex_tokens(query)
-        if not q_terms or not rows:
-            return []
+                rows = []
+            else:
+                payload = json.loads(self.local_path.read_text(encoding="utf-8"))
+                rows = [r for r in payload if self._matches(r.get("metadata", {}), filters)]
         tokenized = [self._lex_tokens(((r.get("metadata", {}) or {}).get("heading", "") + " ") * 3 + r.get("document", "")) for r in rows]
         df: dict[str, int] = {}
         for terms in tokenized:
@@ -189,6 +204,27 @@ class VectorStore:
                 df[t] = df.get(t, 0) + 1
         n = max(len(rows), 1)
         avgdl = sum(len(t) for t in tokenized) / n if tokenized else 1.0
+        result = (rows, tokenized, df, avgdl)
+        # Keep the cache from growing unbounded across many distinct filter combos.
+        if len(self._bm25_cache) > 64:
+            self._bm25_cache.clear()
+        self._bm25_cache[cache_key] = result
+        return result
+
+    def _corpus_size(self) -> int:
+        if self.collection is not None:
+            return self.collection.count()
+        if not self.local_path.exists():
+            return 0
+        return len(json.loads(self.local_path.read_text(encoding="utf-8")))
+
+    def query_keywords(self, query: str, filters: dict[str, Any], top_k: int) -> list[dict[str, Any]]:
+        """BM25-style lexical retrieval for exact curriculum terminology."""
+        rows, tokenized, df, avgdl = self._bm25_corpus(filters)
+        q_terms = self._lex_tokens(query)
+        if not q_terms or not rows:
+            return []
+        n = max(len(rows), 1)
         k1, b = 1.2, 0.75
         scored=[]
         for row, terms in zip(rows, tokenized):

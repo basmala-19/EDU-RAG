@@ -2,8 +2,22 @@ from __future__ import annotations
 
 import math
 import re
+from functools import lru_cache
 from src.infrastructure.config import get_settings
 from src.infrastructure.ar_text import normalize_ar_token
+
+
+@lru_cache(maxsize=4)
+def _get_reranker(model_name: str, device: str):
+    """Load the CrossEncoder once per (model, device) and reuse it across requests.
+
+    Previously this was instantiated on every rerank_and_dedup() call, which
+    reloads the full bge-reranker-v2-m3 weights from disk/cache on every single
+    query — the single biggest avoidable latency cost in the retrieval path.
+    """
+    from sentence_transformers import CrossEncoder
+
+    return CrossEncoder(model_name, device=device)
 
 _AR_STOP = {"من","في","على","عن","إلى","الى","هو","هي","ما","ماذا","هل","و","أو","أن","إن","الذي","التي","the","a","an","of","to","in","on","is","are","what","how","and","or"}
 
@@ -63,8 +77,7 @@ def rerank_and_dedup(results:list[dict], top_k:int, query:str="") -> list[dict]:
     candidates=ranked[:max(top_k,settings.reranker_candidates)]
     if settings.reranker_enabled and candidates:
         try:
-            from sentence_transformers import CrossEncoder
-            ce=CrossEncoder(settings.reranker_model,device=settings.embedding_device)
+            ce=_get_reranker(settings.reranker_model,settings.embedding_device)
             vals=ce.predict([(query,str(x.get("document",""))) for x in candidates],show_progress_bar=False)
             for x,v in zip(candidates,vals):
                 v=float(v)
