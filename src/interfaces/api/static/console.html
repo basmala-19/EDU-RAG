@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Curriculum RAG — Test Console</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #161922; --panel-2: #1d212c; --border: #2a2f3d;
+    --text: #e7e9ee; --muted: #8b92a5; --accent: #5b8def; --accent-2: #7c5cf0;
+    --ok: #3ecf8e; --warn: #f5a524; --bad: #f0555a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; }
+  header .badge { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; }
+  main { flex: 1; display: grid; grid-template-columns: 340px 1fr 380px; min-height: 0; }
+  section { min-height: 0; display: flex; flex-direction: column; }
+  #upload-panel { border-right: 1px solid var(--border); padding: 16px; overflow-y: auto; }
+  #chat-panel { border-right: 1px solid var(--border); min-width: 0; }
+  #evidence-panel { padding: 16px; overflow-y: auto; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; }
+
+  .dropzone {
+    border: 1.5px dashed var(--border); border-radius: 10px; padding: 22px 14px;
+    text-align: center; cursor: pointer; font-size: 13px; color: var(--muted);
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: rgba(91,141,239,.06); }
+  input[type=file] { display: none; }
+
+  .file-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; margin-top: 10px; cursor: pointer; font-size: 12.5px;
+  }
+  .file-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .file-card .title { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
+  .file-card .meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 8px; font-size: 11px; }
+  .chip.warn { color: var(--warn); border-color: var(--warn); }
+  .chip.dup { color: var(--accent-2); border-color: var(--accent-2); }
+
+  #chat-log { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 88%; padding: 10px 14px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+  .msg.system { align-self: center; color: var(--muted); font-size: 12px; background: none; }
+  .status-line { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 11px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .dot.answered { background: var(--ok); } .dot.insufficient_evidence { background: var(--warn); } .dot.grounding_failed { background: var(--bad); }
+  .ev-toggle { color: var(--accent); cursor: pointer; text-decoration: underline; font-size: 11.5px; margin-top: 8px; display: inline-block; }
+
+  #composer { border-top: 1px solid var(--border); padding: 12px; display: flex; gap: 8px; flex-shrink: 0; }
+  #composer input { flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; }
+  #composer input:focus { outline: none; border-color: var(--accent); }
+  #composer button, .btn { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 10px 16px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  #composer button:disabled { opacity: .5; cursor: default; }
+
+  .ev-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; font-size: 12.5px; transition: border-color .2s, box-shadow .2s; scroll-margin-top: 16px; }
+  .ev-card.flash { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset, 0 0 16px rgba(124,92,240,.35); }
+  .ev-card .head { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+  .ev-card .heading { font-weight: 600; margin-bottom: 6px; }
+  .ev-card .raw { background: var(--panel-2); border-radius: 8px; padding: 8px; max-height: 0; overflow: hidden; transition: max-height .2s ease; direction: auto; }
+  .ev-card .raw.open { max-height: 260px; overflow-y: auto; }
+  .empty { color: var(--muted); font-size: 12.5px; text-align: center; margin-top: 40px; }
+  #upload-status { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 Curriculum RAG — Test Console</h1>
+  <span class="badge" id="api-base-badge"></span>
+</header>
+<main>
+  <section id="upload-panel">
+    <h2>1 · Upload a book</h2>
+    <div class="dropzone" id="dropzone">Click or drop a PDF/DOCX here</div>
+    <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" />
+    <div id="upload-status"></div>
+    <h2 style="margin-top:20px">Indexed files (this session)</h2>
+    <div id="file-list"></div>
+  </section>
+
+  <section id="chat-panel">
+    <div id="chat-log">
+      <div class="msg system">Upload a book on the left, then ask a question below. Answers are grounded in retrieved evidence — click "Show evidence" under any answer to inspect the exact source text on the right.</div>
+    </div>
+    <div id="composer">
+      <input id="query-input" type="text" placeholder="Ask about the selected book…" disabled />
+      <button id="send-btn" disabled>Ask</button>
+    </div>
+  </section>
+
+  <section id="evidence-panel">
+    <h2>Evidence</h2>
+    <div id="evidence-list"><div class="empty">Evidence for the last answer appears here.<br>Click a source chip in the chat to jump to it.</div></div>
+  </section>
+</main>
+
+<script>
+const API_BASE = location.origin;
+document.getElementById('api-base-badge').textContent = API_BASE;
+
+let files = [];          // {file_reference_id, file_name, document_metadata, duplicate}
+let activeFile = null;
+let sessionId = null;
+let evSeq = 0;
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const uploadStatus = document.getElementById('upload-status');
+const fileList = document.getElementById('file-list');
+const chatLog = document.getElementById('chat-log');
+const queryInput = document.getElementById('query-input');
+const sendBtn = document.getElementById('send-btn');
+const evidenceList = document.getElementById('evidence-list');
+
+dropzone.addEventListener('click', () => fileInput.click());
+['dragover', 'dragleave', 'drop'].forEach(evt => {
+  dropzone.addEventListener(evt, e => {
+    e.preventDefault();
+    dropzone.classList.toggle('drag', evt === 'dragover');
+  });
+});
+dropzone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if (f) uploadFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  uploadStatus.textContent = `Uploading ${file.name}…`;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(`${API_BASE}/api/rag/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    files.unshift(data);
+    renderFileList();
+    setActiveFile(data);
+    uploadStatus.textContent = data.duplicate
+      ? `Already indexed before — reused curriculum ${data.curriculum_id}.`
+      : `Indexed: ${data.chunks_created} chunks.`;
+  } catch (err) {
+    uploadStatus.textContent = `Upload failed: ${err.message}`;
+  } finally {
+    fileInput.value = '';
+  }
+}
+
+function renderFileList() {
+  fileList.innerHTML = '';
+  for (const f of files) {
+    const meta = f.document_metadata || {};
+    const card = document.createElement('div');
+    card.className = 'file-card' + (activeFile && activeFile.file_reference_id === f.file_reference_id ? ' active' : '');
+    card.innerHTML = `
+      <div class="title">${escapeHtml(f.file_name)}</div>
+      <div class="meta">
+        ${meta.subject ? `<span class="chip">${escapeHtml(meta.subject)}</span>` : ''}
+        ${meta.grade ? `<span class="chip">Grade ${escapeHtml(String(meta.grade))}</span>` : ''}
+        ${meta.term ? `<span class="chip">Term ${escapeHtml(String(meta.term))}</span>` : ''}
+        ${meta.text_quality_warning ? `<span class="chip warn">⚠ ${escapeHtml(meta.text_quality_warning)}</span>` : ''}
+        ${f.duplicate ? `<span class="chip dup">duplicate</span>` : ''}
+      </div>`;
+    card.addEventListener('click', () => setActiveFile(f));
+    fileList.appendChild(card);
+  }
+}
+
+function setActiveFile(f) {
+  activeFile = f;
+  sessionId = null; // switching books starts a fresh session
+  renderFileList();
+  queryInput.disabled = false;
+  sendBtn.disabled = false;
+  addMessage('system', `Now asking about: ${f.file_name}`);
+}
+
+queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendQuery(); });
+sendBtn.addEventListener('click', sendQuery);
+
+async function sendQuery() {
+  const query = queryInput.value.trim();
+  if (!query || !activeFile) return;
+  addMessage('user', query);
+  queryInput.value = '';
+  sendBtn.disabled = true;
+  const thinkingEl = addMessage('assistant', '…thinking…');
+
+  try {
+    const body = { query, file_reference_id: sessionId ? undefined : activeFile.file_reference_id };
+    if (sessionId) body.session_id = sessionId;
+    const res = await fetch(`${API_BASE}/api/rag/response`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    sessionId = data.session_id;
+    renderAssistantAnswer(thinkingEl, data);
+  } catch (err) {
+    thinkingEl.querySelector('.text').textContent = `Error: ${err.message}`;
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+function addMessage(role, text) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.innerHTML = `<span class="text">${escapeHtml(text)}</span>`;
+  chatLog.appendChild(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+
+function renderAssistantAnswer(el, data) {
+  const groupId = `ev-${++evSeq}`;
+  const sources = data.sources || [];
+  const chips = sources.map((s, i) => `<span class="chip src-chip" data-group="${groupId}" data-idx="${i}" style="cursor:pointer">[${i + 1}] p.${s.page ?? '—'}</span>`).join(' ');
+  el.innerHTML = `
+    <span class="text">${escapeHtml(data.answer)}</span>
+    <div class="status-line">
+      <span class="dot ${data.answer_status}"></span>
+      <span>${data.answer_status.replace('_', ' ')}</span>
+    </div>
+    <div class="meta" style="margin-top:6px">${chips}</div>
+    <span class="ev-toggle" data-group="${groupId}">Show evidence (${sources.length})</span>
+  `;
+  let rendered = false;
+  const ensureRendered = () => { if (!rendered) { renderEvidence(sources, groupId); rendered = true; } };
+  el.querySelector('.ev-toggle').addEventListener('click', ensureRendered);
+  el.querySelectorAll('.src-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      ensureRendered();
+      jumpToEvidence(groupId, chip.dataset.idx);
+    });
+  });
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function jumpToEvidence(groupId, idx) {
+  const card = document.getElementById(`${groupId}-${idx}`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('flash');
+  card.querySelector('.raw').classList.add('open');
+  setTimeout(() => card.classList.remove('flash'), 1400);
+}
+
+function renderEvidence(sources, groupId) {
+  evidenceList.innerHTML = '';
+  if (!sources.length) {
+    evidenceList.innerHTML = '<div class="empty">No evidence returned for this answer.</div>';
+    return;
+  }
+  sources.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'ev-card';
+    card.id = `${groupId}-${i}`;
+    card.innerHTML = `
+      <div class="head">
+        <span>#${i + 1} · page ${s.page ?? '—'} · score ${s.score?.toFixed(3) ?? '—'}</span>
+        <span>${s.context_expanded ? 'expanded' : 'child chunk'}</span>
+      </div>
+      <div class="heading">${escapeHtml(stripMd(s.heading) || 'Untitled section')}</div>
+      <div class="meta" style="margin-bottom:6px">${(s.retrieval_channels || []).map(c => `<span class="chip">${escapeHtml(c)}</span>`).join('')}</div>
+      <div class="raw">${s.raw_text ? escapeHtml(s.raw_text) : '<em>raw_text not available for this chunk.</em>'}</div>
+    `;
+    card.addEventListener('click', () => {
+      const raw = card.querySelector('.raw');
+      raw.classList.toggle('open');
+    });
+    evidenceList.appendChild(card);
+  });
+}
+
+function stripMd(s) { return (s || '').replace(/\*\*/g, ''); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run API (uvicorn --reload)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "src.interfaces.api.app:app",
+        "--reload",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "jinja": true,
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Ingest (entrypoint/ingest.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/entrypoint/ingest.py",
+      "envFile": "${workspaceFolder}/.env",
+      "cwd": "${workspaceFolder}",
+      "args": []
+    },
+    {
+      "name": "Query (entrypoint/query.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/entrypoint/query.py",
+      "envFile": "${workspaceFolder}/.env",
+      "cwd": "${workspaceFolder}",
+      "args": []
+    }
+  ]
+}

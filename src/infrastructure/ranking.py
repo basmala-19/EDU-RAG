@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+import math
+import re
+from src.infrastructure.config import get_settings
+from src.infrastructure.ar_text import normalize_ar_token
+
+_AR_STOP = {"من","في","على","عن","إلى","الى","هو","هي","ما","ماذا","هل","و","أو","أن","إن","الذي","التي","the","a","an","of","to","in","on","is","are","what","how","and","or"}
+
+def _tokens(text: str) -> set[str]:
+    raw = re.findall(r"[a-z0-9][a-z0-9_./+\-]*|[\u0600-\u06FF]+", (text or "").casefold())
+    out=set()
+    for t in raw:
+        t=re.sub(r"[\u064B-\u065F\u0670]", "", t).replace("ـ", "")
+        t=normalize_ar_token(t)
+        if len(t)>1 and t not in _AR_STOP:
+            out.add(t)
+    return out
+
+def _norm_rrf(rrf: float, weight_sum: float) -> float:
+    anchor=max(weight_sum/61.0,1e-9)
+    return min(1.0,rrf/anchor)
+
+def rerank_and_dedup(results:list[dict], top_k:int, query:str="") -> list[dict]:
+    settings=get_settings(); q=_tokens(query); qtext=query.casefold()
+    weights={"semantic":settings.semantic_weight,"question":settings.question_weight,"keyword":settings.keyword_weight}
+    channels={"semantic":[],"question":[],"keyword":[]}; candidates={}
+    for item in results:
+        cid=str(item["id"]); candidates.setdefault(cid,dict(item))
+        if item.get("question_match"):
+            candidates[cid]["question_match"]=True; candidates[cid]["question_distance"]=min(float(candidates[cid].get("question_distance",1.0)),float(item.get("question_distance",item.get("distance",1.0))))
+        if item.get("keyword_match"):
+            candidates[cid]["keyword_match"]=True; candidates[cid]["keyword_score"]=max(float(candidates[cid].get("keyword_score",0.0)),float(item.get("keyword_score",0.0)))
+    for item in candidates.values():
+        channels["semantic"].append(item)
+        if item.get("question_match"): channels["question"].append(item)
+        if item.get("keyword_match"): channels["keyword"].append(item)
+    channels["semantic"].sort(key=lambda x:float(x.get("distance",1.0)))
+    channels["question"].sort(key=lambda x:float(x.get("question_distance",1.0)))
+    channels["keyword"].sort(key=lambda x:float(x.get("keyword_score",0.0)),reverse=True)
+    ranks={n:{str(x["id"]):i+1 for i,x in enumerate(rows)} for n,rows in channels.items()}
+    weight_sum=sum(weights.values())
+    definition_q=bool(re.search(r"(?:ما هو|ما هي|ما المقصود|تعريف|what is|define)",qtext,re.I))
+    ranked=[]; seen=set()
+    for cid,item in candidates.items():
+        doc=re.sub(r"\s+"," ",str(item.get("document","")).casefold()).strip(); meta=item.get("metadata") or {}
+        dedupe_key=doc[:500]
+        if dedupe_key in seen: continue
+        seen.add(dedupe_key)
+        rrf=0.0; contributed=[]
+        for n,rm in ranks.items():
+            rank=rm.get(cid)
+            if rank:
+                rrf += weights[n]/(60+rank); contributed.append(n)
+        overlap=len(q&_tokens(doc))/max(len(q),1)
+        h_overlap=len(q&_tokens(str(meta.get("heading") or "")))/max(len(q),1)
+        exact=1.0 if q and q.issubset(_tokens(doc)) else 0.0
+        ctype=1.0 if meta.get("content_type") in {"definition","paragraph","example","table"} else 0.5
+        direct=(0.24*exact+0.18*overlap+0.10*h_overlap) if definition_q else (0.14*overlap+0.08*h_overlap)
+        score=0.48*_norm_rrf(rrf,weight_sum)+0.42*direct+0.10*ctype
+        ranked.append({**item,"score":float(min(1.0,score)),"rrf_score":float(_norm_rrf(rrf,weight_sum)),"lexical_overlap":float(overlap),"heading_overlap":float(h_overlap),"retrieval_channels":contributed})
+    ranked.sort(key=lambda x:x["score"],reverse=True)
+    candidates=ranked[:max(top_k,settings.reranker_candidates)]
+    if settings.reranker_enabled and candidates:
+        try:
+            from sentence_transformers import CrossEncoder
+            ce=CrossEncoder(settings.reranker_model,device=settings.embedding_device)
+            vals=ce.predict([(query,str(x.get("document",""))) for x in candidates],show_progress_bar=False)
+            for x,v in zip(candidates,vals):
+                v=float(v)
+                # BAAI/bge-reranker-v2-m3 already returns a calibrated [0,1] relevance
+                # probability from CrossEncoder.predict() (its own activation is applied
+                # internally) — applying sigmoid() again here on top of that squashed every
+                # score toward ~0.5 regardless of true relevance (e.g. a genuinely irrelevant
+                # doc at v≈0.0002 became 0.50005 instead of staying ~0), which made the
+                # pre-generation "catastrophic irrelevance" gate unable to tell garbage
+                # retrieval from a real answer. Just clip, don't re-sigmoid.
+                x["reranker_score"]=min(1.0,max(0.0,v))
+        except Exception as exc:
+            for x in candidates: x["reranker_score"]=float(x["score"]); x["reranker_error"]=f"{type(exc).__name__}: {exc}"
+    for x in candidates:
+        rer=float(x.get("reranker_score",x["score"]))
+        x["retrieval_confidence"]=float(min(1.0,max(0.0,0.60*rer+0.25*x["lexical_overlap"]+0.15*min(1.0,len(x["retrieval_channels"])/2))))
+    candidates.sort(key=lambda x:(x.get("reranker_score",0),x["retrieval_confidence"],x["score"]),reverse=True)
+    return candidates[:top_k]
