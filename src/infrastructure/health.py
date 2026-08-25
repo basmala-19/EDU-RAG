@@ -1,9 +1,9 @@
-from src.infrastructure.embeddings import EmbeddingService
+from src.infrastructure.embeddings import get_embedding_service
 from src.infrastructure.vector_store import VectorStore
 from src.domain.schemas import HealthResponse
 
 def health() -> HealthResponse:
-    emb=EmbeddingService(); store=VectorStore()
+    emb=get_embedding_service(); store=VectorStore()
     try:
         emb.encode(["health check"])
     except Exception:

@@ -212,6 +212,17 @@ class UploadResponse(IngestionResponse):
     )
 
 
+class IngestionJobResponse(BaseModel):
+    """Asynchronous ingestion job returned immediately after the file upload finishes."""
+    job_id: str
+    status: Literal["queued", "processing", "completed", "failed"]
+    file_reference_id: str
+    file_name: str
+    size_bytes: int
+    result: UploadResponse | None = None
+    error: str | None = None
+
+
 class SubjectStructure(BaseModel):
     subject: str
     grades: list[str] = Field(default_factory=list)

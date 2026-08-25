@@ -8,9 +8,9 @@ to the current one.
 ## Public API
 
 - `GET /api/rag/health` — readiness of embeddings + vector store.
-- `POST /api/rag/upload` — file only; backend generates `file_reference_id`, `curriculum_id`,
-  and `version`. Duplicate content (by hash) is detected and skipped unless
-  `?force_reingest=true` is passed.
+- `POST /api/rag/upload` — file only; returns an ingestion job immediately. Poll
+  `GET /api/rag/ingestion-jobs/{job_id}` until completion. Duplicate content (by hash) is
+  detected and skipped unless `?force_reingest=true` is passed.
 - `GET /api/rag/structure` — discover indexed subjects → grades → chapters/lessons.
 - `POST /api/rag/response` — learning-session context + retrieval + reranking + parent
   expansion + Ollama/Groq generation.
@@ -55,6 +55,14 @@ Grounded response + evidence sources
 **Prerequisites:** Python **3.11** (required on Windows for ChromaDB), [Ollama](https://ollama.com) installed locally (or a Groq
 API key if you'd rather use that as the generation backend).
 
+### Cloud retrieval with OpenRouter
+
+The default configuration uses OpenRouter for both retrieval models, so the large local
+embedding and reranker downloads are not needed. Set `OPENROUTER_API_KEY` in `.env`.
+It uses `baai/bge-m3` for embeddings and `cohere/rerank-v3.5` for reranking. Existing
+indexes created with the same BGE-M3 model remain compatible; re-index documents whenever
+you change `EMBEDDING_MODEL`.
+
 1. **Open a terminal in the project folder**
 
 2. **Install `uv`, then create a virtual environment**
@@ -67,7 +75,7 @@ API key if you'd rather use that as the generation backend).
 3. **Install dependencies**
 
    ```bash
-   uv pip install -r requirements.txt
+   uv sync --extra test
    ```
 
 4. **Configure environment**
@@ -96,7 +104,7 @@ API key if you'd rather use that as the generation backend).
 6. **Run the API**
 
    ```bash
-   uv run --with-requirements requirements.txt uvicorn src.interfaces.api.app:app --reload
+   uv run uvicorn src.interfaces.api.app:app --reload
    ```
 
    The API is now at `http://127.0.0.1:8000` — interactive docs at
@@ -106,7 +114,7 @@ API key if you'd rather use that as the generation backend).
    or from the terminal:
 
    ```bash
-   uv run --with-requirements requirements.txt pytest -q
+   uv run --extra test pytest -q
    ```
 
 ## Generation backend

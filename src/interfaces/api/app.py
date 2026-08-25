@@ -10,13 +10,14 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from src.domain.schemas import (
     ChapterStructure,
     CurriculumStructureResponse,
     ErrorResponse,
     HealthResponse,
+    IngestionJobResponse,
     ResponsePayload,
     ResponseRequest,
     ResponseSource,
@@ -26,6 +27,7 @@ from src.domain.schemas import (
 )
 from src.infrastructure.document_loader import SUPPORTED_EXTENSIONS
 from src.application.ingestion_service import IngestionService
+from src.application.ingestion_jobs import IngestionJobService
 from src.application.generation import build_context, generate_with_provider
 from src.application.retrieval_service import RetrievalService
 from src.infrastructure.config import get_settings
@@ -67,9 +69,10 @@ app = FastAPI(
 
 # Permissive by default so the bundled /console (and any local admin UI) can call the API
 # from a different origin/port during development. Tighten allow_origins for production.
+settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,6 +83,7 @@ retrieval_service = RetrievalService()
 session_store = LearningSessionStore()
 structure_service = CurriculumStructureService(ingestion_service.store)
 ingest_registry = IngestRegistry()
+ingestion_jobs = IngestionJobService(ingestion_service, ingest_registry, settings.ingestion_workers)
 UPLOAD_DIR = Path("data/raw/uploads")
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
@@ -100,7 +104,7 @@ async def _warm_up_models() -> None:
             logger.exception("Embedding model warm-up failed")
         try:
             settings = get_settings()
-            if settings.reranker_enabled:
+            if settings.reranker_enabled and settings.reranker_backend.casefold() == "local":
                 from src.infrastructure.ranking import _get_reranker
                 ce = _get_reranker(settings.reranker_model, settings.embedding_device)
                 ce.predict([("warm-up", "warm-up")], show_progress_bar=False)
@@ -146,14 +150,20 @@ def rag_console() -> HTMLResponse:
     return HTMLResponse(_CONSOLE_PATH.read_text(encoding="utf-8"))
 
 
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/console")
+
+
 @app.post(
     "/api/rag/upload",
-    response_model=UploadResponse,
+    response_model=UploadResponse | IngestionJobResponse,
     tags=["ingestion"],
-    summary="Upload and index a curriculum file",
+    summary="Upload a curriculum file and queue indexing",
     description=(
         "Client sends only the file. The backend creates file_reference_id, curriculum_id, and version, "
-        "then parses, extracts metadata, creates parent/child chunks, embeds, indexes, and returns the result. "
+        "then queues parsing, metadata extraction, chunking, embedding, and indexing. Poll the returned job_id "
+        "at GET /api/rag/ingestion-jobs/{job_id} until status is completed. "
         "If this exact file content (by hash, regardless of filename) was already ingested before, ingestion is "
         "skipped and the original curriculum_id/file_reference_id are returned with duplicate=true — pass "
         "?force_reingest=true to re-index anyway."
@@ -188,7 +198,7 @@ def rag_console() -> HTMLResponse:
         500: {"model": ErrorResponse, "description": "Safe processing error; internal details are logged server-side."},
     },
 )
-async def rag_upload(file: UploadFile = File(..., description="Document to index"), force_reingest: bool = False) -> UploadResponse:
+async def rag_upload(file: UploadFile = File(..., description="Document to index"), force_reingest: bool = False) -> UploadResponse | IngestionJobResponse:
     original_name = Path(file.filename or "uploaded_file").name
     suffix = Path(original_name).suffix.lower()
     if suffix not in SUPPORTED_EXTENSIONS:
@@ -271,29 +281,14 @@ async def rag_upload(file: UploadFile = File(..., description="Document to index
         if force_reingest:
             ingest_registry.forget(content_hash)
 
-        # ingestion_service.ingest() is CPU/IO-heavy (parsing, chunking, embedding
-        # hundreds of chunks). Running it directly here would block the single
-        # asyncio event loop for the whole duration, freezing every other
-        # concurrent request (including unrelated /api/rag/response calls and
-        # /api/rag/health) until this upload finishes. Offload it to FastAPI's
-        # threadpool so the event loop stays free for everyone else.
-        result = await run_in_threadpool(
-            ingestion_service.ingest, target, None, "v1", file_reference_id=file_reference_id, extra_metadata={}
+        job = ingestion_jobs.submit(
+            source=target,
+            file_reference_id=file_reference_id,
+            file_name=original_name,
+            size_bytes=size,
+            content_hash=content_hash,
         )
-        result_dump = result.model_dump()
-        ingest_registry.register(content_hash, {
-            "file_reference_id": file_reference_id,
-            "file_name": original_name,
-            "curriculum_id": result_dump["curriculum_id"],
-            "version": result_dump["version"],
-            "chunks_created": result_dump["chunks_created"],
-            "indexed_chunks": result_dump["indexed_chunks"],
-            "indexed_question_count": result_dump["indexed_question_count"],
-            "language_counts": result_dump["language_counts"],
-            "metadata_coverage": result_dump["metadata_coverage"],
-            "document_metadata": result_dump["document_metadata"],
-        })
-        return UploadResponse(file_reference_id=file_reference_id, file_name=original_name, size_bytes=size, duplicate=False, **result_dump)
+        return IngestionJobResponse(**job.public())
     except HTTPException:
         target.unlink(missing_ok=True)
         raise
@@ -303,6 +298,14 @@ async def rag_upload(file: UploadFile = File(..., description="Document to index
         raise HTTPException(status_code=500, detail="Upload processing failed. Check server logs for details.") from exc
     finally:
         await file.close()
+
+
+@app.get("/api/rag/ingestion-jobs/{job_id}", response_model=IngestionJobResponse, tags=["ingestion"])
+def ingestion_job_status(job_id: str) -> IngestionJobResponse:
+    job = ingestion_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Ingestion job not found")
+    return IngestionJobResponse(**job)
 
 
 @app.get(

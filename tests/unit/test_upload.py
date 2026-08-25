@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import time
 from src.interfaces.api.app import app
 
 def test_upload_accepts_file_only_and_backend_generates_ids(monkeypatch):
@@ -20,5 +21,16 @@ def test_upload_accepts_file_only_and_backend_generates_ids(monkeypatch):
     data = response.json()
     assert data["file_name"] == "sample.txt"
     assert len(data["file_reference_id"]) == 32
-    assert data["curriculum_id"] == "cur_demo"
-    assert data["document_metadata"]["term"] is None
+    assert data["status"] in {"queued", "processing"}
+    assert data["job_id"]
+    client = TestClient(app)
+    for _ in range(40):
+        status = client.get(f"/api/rag/ingestion-jobs/{data['job_id']}")
+        assert status.status_code == 200, status.text
+        completed = status.json()
+        if completed["status"] == "completed":
+            break
+        time.sleep(0.01)
+    assert completed["status"] == "completed"
+    assert completed["result"]["curriculum_id"] == "cur_demo"
+    assert completed["result"]["document_metadata"]["term"] is None

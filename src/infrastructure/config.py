@@ -8,8 +8,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_env: str = "local"
     log_level: str = "INFO"
-    embedding_model: str = "BAAI/bge-m3"
+    cors_origins: str = "http://127.0.0.1:8000,http://localhost:8000"
+    embedding_backend: str = "openrouter"
+    embedding_model: str = "baai/bge-m3"
     embedding_device: str = "cpu"
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_timeout: int = 90
     vector_store: str = "chroma"
     chroma_path: str = "data/vector_store/chroma"
     # Disable Chroma's anonymous product telemetry by default. It is unnecessary for
@@ -69,12 +74,14 @@ class Settings(BaseSettings):
     # case where it actually changes the answer.
     skip_contextual_retrieval_confidence: float = 0.75
     reranker_enabled: bool = True
-    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_backend: str = "openrouter"
+    reranker_model: str = "cohere/rerank-v3.5"
     reranker_candidates: int = 60
     embedding_allow_hash_fallback: bool = True
     # Question index is enabled by default.
     question_index_enabled: bool = True
     max_questions_per_chunk: int = 4
+    ingestion_workers: int = 1
     # Generation backend. Defaults to Groq (cloud, fast, no local model to manage).
     # Set to "ollama" to run generation fully local instead.
     generation_backend: str = "groq"

@@ -146,6 +146,12 @@ async function uploadFile(file) {
     const res = await fetch(`${API_BASE}/api/rag/upload`, { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || res.statusText);
+    if (data.job_id) {
+      await waitForIngestion(data);
+      return;
+    }
+    completeUpload(data);
+    return;
     files.unshift(data);
     renderFileList();
     setActiveFile(data);
@@ -156,6 +162,33 @@ async function uploadFile(file) {
     uploadStatus.textContent = `Upload failed: ${err.message}`;
   } finally {
     fileInput.value = '';
+  }
+}
+
+function completeUpload(data) {
+  files.unshift(data);
+  renderFileList();
+  setActiveFile(data);
+  uploadStatus.textContent = data.duplicate
+    ? `Already indexed before — reused curriculum ${data.curriculum_id}.`
+    : `Indexed: ${data.chunks_created} chunks.`;
+}
+
+async function waitForIngestion(job) {
+  while (true) {
+    uploadStatus.textContent = job.status === 'queued'
+      ? `Queued for indexing: ${job.file_name}…`
+      : `Indexing ${job.file_name}… this can take a few minutes.`;
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const res = await fetch(`${API_BASE}/api/rag/ingestion-jobs/${job.job_id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    if (data.status === 'completed') {
+      completeUpload(data.result);
+      return;
+    }
+    if (data.status === 'failed') throw new Error(data.error || 'Indexing failed');
+    job = data;
   }
 }
 

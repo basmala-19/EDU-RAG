@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import re
 from functools import lru_cache
+import requests
 from src.infrastructure.config import get_settings
 from src.infrastructure.ar_text import normalize_ar_token
 
@@ -34,6 +35,24 @@ def _tokens(text: str) -> set[str]:
 def _norm_rrf(rrf: float, weight_sum: float) -> float:
     anchor=max(weight_sum/61.0,1e-9)
     return min(1.0,rrf/anchor)
+
+def _rerank_with_openrouter(query: str, candidates: list[dict], settings) -> None:
+    if not settings.openrouter_api_key:
+        raise RuntimeError("OPENROUTER_API_KEY is required when RERANKER_BACKEND=openrouter")
+    response = requests.post(
+        f"{settings.openrouter_base_url.rstrip('/')}/rerank",
+        headers={"Authorization": f"Bearer {settings.openrouter_api_key}", "Content-Type": "application/json"},
+        json={"model": settings.reranker_model, "query": query, "documents": [str(item.get("document", "")) for item in candidates], "top_n": len(candidates)},
+        timeout=settings.openrouter_timeout,
+    )
+    response.raise_for_status()
+    rows = response.json().get("results") or []
+    for item in candidates:
+        item["reranker_score"] = 0.0
+    for row in rows:
+        index = int(row["index"])
+        if 0 <= index < len(candidates):
+            candidates[index]["reranker_score"] = min(1.0, max(0.0, float(row["relevance_score"])))
 
 def rerank_and_dedup(results:list[dict], top_k:int, query:str="") -> list[dict]:
     settings=get_settings(); q=_tokens(query); qtext=query.casefold()
@@ -77,10 +96,16 @@ def rerank_and_dedup(results:list[dict], top_k:int, query:str="") -> list[dict]:
     candidates=ranked[:max(top_k,settings.reranker_candidates)]
     if settings.reranker_enabled and candidates:
         try:
-            ce=_get_reranker(settings.reranker_model,settings.embedding_device)
-            vals=ce.predict([(query,str(x.get("document",""))) for x in candidates],show_progress_bar=False)
-            for x,v in zip(candidates,vals):
-                v=float(v)
+            if settings.reranker_backend.casefold() == "openrouter":
+                _rerank_with_openrouter(query, candidates, settings)
+            elif settings.reranker_backend.casefold() == "local":
+                ce=_get_reranker(settings.reranker_model,settings.embedding_device)
+                vals=ce.predict([(query,str(x.get("document",""))) for x in candidates],show_progress_bar=False)
+                for x,v in zip(candidates,vals):
+                    v=float(v)
+                    x["reranker_score"]=min(1.0,max(0.0,v))
+            else:
+                raise RuntimeError("RERANKER_BACKEND must be 'openrouter' or 'local'")
                 # BAAI/bge-reranker-v2-m3 already returns a calibrated [0,1] relevance
                 # probability from CrossEncoder.predict() (its own activation is applied
                 # internally) — applying sigmoid() again here on top of that squashed every
@@ -88,7 +113,6 @@ def rerank_and_dedup(results:list[dict], top_k:int, query:str="") -> list[dict]:
                 # doc at v≈0.0002 became 0.50005 instead of staying ~0), which made the
                 # pre-generation "catastrophic irrelevance" gate unable to tell garbage
                 # retrieval from a real answer. Just clip, don't re-sigmoid.
-                x["reranker_score"]=min(1.0,max(0.0,v))
         except Exception as exc:
             for x in candidates: x["reranker_score"]=float(x["score"]); x["reranker_error"]=f"{type(exc).__name__}: {exc}"
     for x in candidates:

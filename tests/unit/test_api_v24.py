@@ -4,7 +4,10 @@ from src.interfaces.api.app import app
 def test_production_api_contract():
     spec = app.openapi()
     paths = spec["paths"]
-    assert set(paths) == {"/api/rag/health", "/api/rag/upload", "/api/rag/structure", "/api/rag/response"}
+    assert set(paths) == {
+        "/api/rag/health", "/api/rag/upload", "/api/rag/ingestion-jobs/{job_id}",
+        "/api/rag/structure", "/api/rag/response",
+    }
     assert paths["/api/rag/response"]["post"]["operationId"] == "response"
     assert paths["/api/rag/response"]["post"]["requestBody"]["content"]["application/json"]["schema"]
     response_schema = spec["components"]["schemas"]["ResponsePayload"]["properties"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.domain.schemas import RetrievalRequest, RetrievalResponse, RetrievalResult
-from src.infrastructure.embeddings import EmbeddingService
+from src.infrastructure.embeddings import get_embedding_service
 from src.infrastructure.config import get_settings
 from src.infrastructure.vector_store import VectorStore
 from src.infrastructure.ranking import rerank_and_dedup
@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 class RetrievalService:
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.embedder = EmbeddingService()
+        self.embedder = get_embedding_service()
         self.store = VectorStore()
 
     def retrieve(self, query: str, filters: dict | None = None, top_k: int | None = None) -> RetrievalResponse:

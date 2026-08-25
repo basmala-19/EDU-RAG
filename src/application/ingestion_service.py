@@ -9,7 +9,7 @@ from src.domain.schemas import ChunkMetadata, DocumentMetadataResponse, Ingestio
 from src.application.chunking import HierarchyAwareParentChildChunker
 from src.infrastructure.document_loader import discover_files, load_file
 from src.infrastructure.config import get_settings
-from src.infrastructure.embeddings import EmbeddingService
+from src.infrastructure.embeddings import get_embedding_service
 from src.application.metadata import clean_optional, detect_language, split_heading_path
 from src.application.document_metadata import extract_document_metadata, resolve_curriculum_identity
 from src.application.hypothetical_questions import generate_questions
@@ -27,7 +27,7 @@ class IngestionService:
             min_size=self.settings.child_chunk_min_size,
             heading_max_length=self.settings.heading_max_length,
         )
-        self.embedder = EmbeddingService()
+        self.embedder = get_embedding_service()
         self.store = VectorStore()
 
     def ingest(self, source: Path, curriculum_id: str | None = None, version: str | None = None, *, file_reference_id: str | None = None, extra_metadata: dict[str, Any] | None = None) -> IngestionResponse:
