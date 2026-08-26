@@ -13,12 +13,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from src.domain.schemas import (
+    ConversationDetail,
+    ConversationListResponse,
+    ConversationSummary,
     ErrorResponse,
     EvaluationMetrics,
     EvaluationRequest,
     EvaluationResponse,
     HealthResponse,
     IngestionJobResponse,
+    LibraryEntry,
+    LibraryResponse,
     ResponsePayload,
     ResponseRequest,
     ResponseSource,
@@ -34,6 +39,7 @@ from src.application.evaluation import RAGEvaluator
 from src.infrastructure.config import get_settings
 from src.infrastructure.health import health
 from src.infrastructure.ingest_registry import IngestRegistry
+from src.infrastructure.conversation_store import ConversationStore
 from src.application.metadata import clean_optional, split_heading_path
 from src.application.session import LearningSessionStore
 
@@ -55,6 +61,7 @@ app = FastAPI(
         {"name": "ingestion", "description": "File upload and indexing."},
         {"name": "response", "description": "Single student-facing retrieval + generation operation."},
         {"name": "evaluation", "description": "RAG Quality Evaluation and RAGAS metrics suite."},
+        {"name": "conversations", "description": "Persisted conversation history: the book used, every Q&A turn, retrieved chunks, and evaluation scores."},
     ],
     swagger_ui_parameters={
         "docExpansion": "list",
@@ -82,6 +89,7 @@ retrieval_service = RetrievalService()
 session_store = LearningSessionStore()
 rag_evaluator = RAGEvaluator()
 ingest_registry = IngestRegistry()
+conversation_store = ConversationStore()
 ingestion_jobs = IngestionJobService(ingestion_service, ingest_registry, settings.ingestion_workers)
 UPLOAD_DIR = Path("data/raw/uploads")
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
@@ -305,6 +313,58 @@ def ingestion_job_status(job_id: str) -> IngestionJobResponse:
     if job is None:
         raise HTTPException(status_code=404, detail="Ingestion job not found")
     return IngestionJobResponse(**job)
+
+
+@app.get(
+    "/api/rag/books",
+    response_model=LibraryResponse,
+    tags=["ingestion"],
+    summary="List previously uploaded books",
+    description=(
+        "Returns every book already ingested and still on record (most recent first), "
+        "so a client can let the user pick a previously uploaded book by its "
+        "file_reference_id and start querying it directly via POST /api/rag/response "
+        "instead of uploading the file again."
+    ),
+)
+def list_books() -> LibraryResponse:
+    records = ingest_registry.list_all()
+    return LibraryResponse(books=[LibraryEntry(**record) for record in records])
+
+
+@app.get(
+    "/api/rag/conversations",
+    response_model=ConversationListResponse,
+    tags=["conversations"],
+    summary="List saved conversations",
+    description=(
+        "Lightweight, most-recently-updated-first listing of every persisted conversation "
+        "(book used, turn count, last question) without the retrieved chunk text — use "
+        "GET /api/rag/conversations/{session_id} for the full detail of one conversation."
+    ),
+)
+def list_conversations() -> ConversationListResponse:
+    return ConversationListResponse(
+        conversations=[ConversationSummary(**c) for c in conversation_store.list_conversations()]
+    )
+
+
+@app.get(
+    "/api/rag/conversations/{session_id}",
+    response_model=ConversationDetail,
+    tags=["conversations"],
+    summary="Get a saved conversation",
+    description=(
+        "Full persisted conversation: the book it's bound to, and every turn's question, "
+        "answer, retrieved evidence chunks, and evaluation scores, in chronological order."
+    ),
+    responses={404: {"model": ErrorResponse, "description": "No conversation recorded under this session_id."}},
+)
+def get_conversation(session_id: str) -> ConversationDetail:
+    record = conversation_store.get_conversation(session_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return ConversationDetail(**record)
 
 
 @app.get("/api/rag/files/{file_reference_id}", include_in_schema=False, tags=["ingestion"])
@@ -587,6 +647,42 @@ def rag_response(request: ResponseRequest) -> ResponsePayload:
             reranker_score=reranker_score,
             retrieval_confidence=retrieval_confidence,
         )
+        retrieval_summary = RetrievalSummary(
+            mode="hybrid",
+            query_used=used_query,
+            candidate_count=len(results),
+            top_score=float(results[0].get("score", 0.0)),
+            grounding_threshold=float(settings.min_grounding_score),
+            semantic_score=max(0.0, 1.0 - float(top_meta.get("distance", 1.0))) if top_meta.get("distance") is not None else 0.0,
+            keyword_score=float(top_meta.get("keyword_score", 0.0)),
+            question_score=max(0.0, 1.0 - float(top_meta.get("question_distance", 1.0))) if top_meta.get("question_distance") is not None else 0.0,
+            rrf_score=float(top_meta.get("rrf_score", 0.0)),
+            reranker_score=reranker_score,
+            retrieval_confidence=retrieval_confidence,
+        )
+
+        try:
+            # Persist book + question + answer + retrieved chunks + evaluation scores for
+            # this turn so the conversation can be browsed/audited later from a fresh
+            # session — a failure here must never break the actual student-facing response.
+            book_record = ingest_registry.find_by_file_reference_id(file_reference_id)
+            conversation_store.append_turn(
+                session_id,
+                file_reference_id=file_reference_id,
+                file_name=(book_record or {}).get("file_name") or file_reference_id,
+                curriculum_id=curriculum_id,
+                version=version,
+                query=request.query,
+                answer=answer,
+                answer_status=answer_status,
+                grounded=grounded,
+                sources=[s.model_dump() for s in sources],
+                retrieval=retrieval_summary.model_dump(),
+                evaluation=eval_metrics.model_dump(),
+            )
+        except Exception:
+            logger.exception("Failed to persist conversation turn (session_id=%s)", session_id)
+
         return ResponsePayload(
             session_id=session_id,
             curriculum_id=curriculum_id,
@@ -596,19 +692,7 @@ def rag_response(request: ResponseRequest) -> ResponsePayload:
             answer_status=answer_status,
             grounded=grounded,
             sources=sources,
-            retrieval=RetrievalSummary(
-                mode="hybrid",
-                query_used=used_query,
-                candidate_count=len(results),
-                top_score=float(results[0].get("score", 0.0)),
-                grounding_threshold=float(settings.min_grounding_score),
-                semantic_score=max(0.0, 1.0 - float(top_meta.get("distance", 1.0))) if top_meta.get("distance") is not None else 0.0,
-                keyword_score=float(top_meta.get("keyword_score", 0.0)),
-                question_score=max(0.0, 1.0 - float(top_meta.get("question_distance", 1.0))) if top_meta.get("question_distance") is not None else 0.0,
-                rrf_score=float(top_meta.get("rrf_score", 0.0)),
-                reranker_score=reranker_score,
-                retrieval_confidence=retrieval_confidence,
-            ),
+            retrieval=retrieval_summary,
             evaluation=eval_metrics,
             session_metadata={
                 "session_turn": len(session.get("turns", [])),

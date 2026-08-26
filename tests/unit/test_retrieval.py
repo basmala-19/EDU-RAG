@@ -30,10 +30,12 @@ def test_candidate_k_is_dynamic(monkeypatch):
     svc.store = DummyStore()
     out = svc.retrieve("q", {"file_reference_id": "file-test"}, top_k=2)
     assert out.results == []
-    # NOTE: updated 2026-08-25. top_k=2 * candidate_multiplier=8 = 16 was the pre-fix
-    # value; this test asserted it before `min_candidate_k` (a floor of 160 on the raw
-    # dense fetch, independent of top_k/candidate_multiplier) existed. That floor is a
-    # deliberate fix, not a regression: a low top_k previously narrowed the initial
-    # candidate window so much that a correct-but-borderline-scored chunk could be
-    # dropped before the reranker ever saw it. See config.py's `min_candidate_k` comment.
-    assert svc.store.requested == 160
+    # NOTE: updated 2026-08-26. min_candidate_k (floor on the raw dense fetch,
+    # independent of top_k/candidate_multiplier) was tuned down from 160 to 100 to trim
+    # local candidate-pool compute/IO — it does not touch the reranker_candidates cap
+    # that bounds the network-bound OpenRouter rerank request. See config.py's
+    # `min_candidate_k` comment for the full rationale, and its original 2026-08-25
+    # history: min_candidate_k was introduced there specifically because a low top_k
+    # previously narrowed the initial candidate window so much that a correct-but-
+    # borderline-scored chunk could be dropped before the reranker ever saw it.
+    assert svc.store.requested == 100

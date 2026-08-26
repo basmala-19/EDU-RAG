@@ -310,6 +310,13 @@
     </div>
 
     <div class="panel-title" style="margin-top:14px">
+      <span>🗂️ الكتب المرفوعة سابقًا</span>
+      <span id="library-refresh" title="تحديث القائمة" style="cursor:pointer;font-weight:700">⟳</span>
+    </div>
+    <div id="library-status" style="font-size:11px;color:var(--gray);text-align:center"></div>
+    <div id="library-list" style="margin-bottom:14px"></div>
+
+    <div class="panel-title" style="margin-top:14px">
       <span>📚 Indexed Curriculum Files</span>
     </div>
     <div id="file-list"></div>
@@ -348,6 +355,7 @@ Welcome to Curriculum RAG! Upload any curriculum book on the left panel, then as
       <button class="tab-btn active" id="tab-eval-btn" onclick="switchRightTab('eval')">📊 Evaluation</button>
       <button class="tab-btn" id="tab-ev-btn" onclick="switchRightTab('ev')">📄 Chunks</button>
       <button class="tab-btn" id="tab-pdf-btn" onclick="switchRightTab('pdf')">📖 Book Viewer</button>
+      <button class="tab-btn" id="tab-conv-btn" onclick="switchRightTab('conv')">🗂️ المحادثات</button>
       <button class="tab-btn" id="tab-json-btn" onclick="switchRightTab('json')">⚡ JSON</button>
     </div>
 
@@ -413,7 +421,21 @@ Welcome to Curriculum RAG! Upload any curriculum book on the left panel, then as
       </div>
     </div>
 
-    <!-- TAB 4: Raw JSON Output -->
+    <!-- TAB 4: Saved Conversations -->
+    <div id="tab-conv-content" style="display:none">
+      <div class="panel-title">
+        <span>🗂️ المحادثات المحفوظة</span>
+        <span id="conv-refresh" title="تحديث القائمة" style="cursor:pointer;font-weight:700">⟳</span>
+      </div>
+      <div id="conv-list">
+        <div style="font-size:11px;color:var(--gray);text-align:center;margin-top:40px">
+          جارِ التحميل...
+        </div>
+      </div>
+      <div id="conv-detail"></div>
+    </div>
+
+    <!-- TAB 5: Raw JSON Output -->
     <div id="tab-json-content" style="display:none">
       <div class="panel-title">
         <span>⚡ Live API Payload Output</span>
@@ -445,8 +467,53 @@ const topkVal = document.getElementById('topk-val');
 const alphaSlider = document.getElementById('alpha-slider');
 const alphaVal = document.getElementById('alpha-val');
 
+const libraryList = document.getElementById('library-list');
+const libraryStatus = document.getElementById('library-status');
+document.getElementById('library-refresh').addEventListener('click', loadLibrary);
+
 dropzone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); });
+
+async function loadLibrary() {
+  libraryStatus.textContent = 'جارِ تحميل الكتب المرفوعة سابقًا...';
+  try {
+    const res = await fetch(`${API_BASE}/api/rag/books`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    window.__library = data.books || [];
+    renderLibrary(window.__library);
+    libraryStatus.textContent = window.__library.length ? '' : 'لا توجد كتب مرفوعة من قبل بعد.';
+  } catch (err) {
+    libraryStatus.textContent = `تعذّر تحميل قائمة الكتب: ${err.message}`;
+  }
+}
+
+function renderLibrary(books) {
+  if (!books.length) { libraryList.innerHTML = ''; return; }
+  libraryList.innerHTML = books.map(b => `
+    <div class="file-card ${activeFile && activeFile.file_reference_id === b.file_reference_id ? 'active' : ''}"
+         onclick="useLibraryBook('${b.file_reference_id}')">
+      <div class="file-card-title">📘 ${b.file_name}</div>
+      <div class="file-card-meta">
+        <span class="chip teal">${b.chunks_created || 0} Chunks</span>
+        <span class="chip purple">${b.document_metadata?.subject || 'Curriculum'}</span>
+        <span class="chip">اضغط للاستخدام مباشرة</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Selecting a book already on record: skip the upload entirely and just make it the
+// active file, exactly as if it had just finished uploading — the backend already has
+// it indexed, so there's nothing to (re-)send.
+function useLibraryBook(fileRefId) {
+  const book = (window.__library || []).find(b => b.file_reference_id === fileRefId);
+  if (!book) return;
+  addFileToList(book);
+  uploadStatus.textContent = `تم اختيار "${book.file_name}" — يمكنك البدء في السؤال مباشرة.`;
+}
+
+loadLibrary();
 
 toggleForce.addEventListener('click', () => {
   forceReingest = !forceReingest;
@@ -478,6 +545,7 @@ async function uploadFile(file) {
       addFileToList(data);
       uploadStatus.textContent = `Successfully indexed ${file.name}!`;
     }
+    loadLibrary();
   } catch (err) {
     uploadStatus.textContent = `Upload error: ${err.message}`;
   }
@@ -505,13 +573,7 @@ function addFileToList(item) {
   const existing = files.findIndex(f => f.file_reference_id === item.file_reference_id);
   if (existing >= 0) files[existing] = item;
   else files.push(item);
-  activeFile = item;
-  renderFileList();
-  queryInput.disabled = false;
-  sendBtn.disabled = false;
-  
-  // Load initial PDF in the reader tab
-  loadPdfViewer(item.file_reference_id, 1);
+  setActiveFile(item);
 }
 
 function renderFileList() {
@@ -528,9 +590,27 @@ function renderFileList() {
 }
 
 function selectFile(fileRefId) {
-  activeFile = files.find(f => f.file_reference_id === fileRefId);
+  const item = files.find(f => f.file_reference_id === fileRefId);
+  if (item) setActiveFile(item);
+}
+
+// Single place that makes a file/book the active one. A backend session is bound to
+// exactly one file_reference_id for its whole lifetime (see /api/rag/response), so
+// switching to a different file must always start a fresh session — otherwise the next
+// query re-sends the old session_id together with the new file_reference_id and the
+// backend correctly rejects it with "session_id is already bound to another file_reference_id".
+function setActiveFile(item) {
+  const isDifferentFile = !activeFile || activeFile.file_reference_id !== item.file_reference_id;
+  activeFile = item;
+  if (isDifferentFile) {
+    sessionId = null;
+    chatLog.innerHTML = `<div class="msg-row assistant"><div class="msg-bubble">تم اختيار "${item.file_name}". اسأل أي سؤال وهيبدأ جلسة جديدة على هذا الكتاب.</div></div>`;
+  }
   renderFileList();
-  loadPdfViewer(fileRefId, 1);
+  if (window.__library) renderLibrary(window.__library);
+  queryInput.disabled = false;
+  sendBtn.disabled = false;
+  loadPdfViewer(item.file_reference_id, 1);
 }
 
 queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendQuery(); });
@@ -571,6 +651,9 @@ async function sendQuery() {
     updateEvaluationUI(data);
     updateEvidenceUI(data.sources);
     document.getElementById('json-viewer').textContent = JSON.stringify(data, null, 2);
+    // Every answered turn is persisted server-side; invalidate the cached conversation
+    // list so the next visit to the "المحادثات" tab reflects this turn.
+    window.__conversationsLoaded = false;
 
   } catch (err) {
     appendMessage('assistant', `Error processing response: ${err.message}`);
@@ -683,10 +766,94 @@ function updateEvidenceUI(sources) {
 }
 
 function switchRightTab(tabName) {
-  ['eval', 'ev', 'pdf', 'json'].forEach(t => {
+  ['eval', 'ev', 'pdf', 'conv', 'json'].forEach(t => {
     document.getElementById(`tab-${t}-content`).style.display = (t === tabName) ? 'block' : 'none';
     document.getElementById(`tab-${t}-btn`).classList.toggle('active', t === tabName);
   });
+  if (tabName === 'conv' && !window.__conversationsLoaded) loadConversations();
+}
+
+document.getElementById('conv-refresh').addEventListener('click', loadConversations);
+
+async function loadConversations() {
+  const list = document.getElementById('conv-list');
+  const detail = document.getElementById('conv-detail');
+  detail.innerHTML = '';
+  list.innerHTML = `<div style="font-size:11px;color:var(--gray);text-align:center;margin-top:40px">جارِ التحميل...</div>`;
+  try {
+    const res = await fetch(`${API_BASE}/api/rag/conversations`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    window.__conversationsLoaded = true;
+    const items = data.conversations || [];
+    if (!items.length) {
+      list.innerHTML = `<div style="font-size:11px;color:var(--gray);text-align:center;margin-top:40px">لا توجد محادثات محفوظة بعد.</div>`;
+      return;
+    }
+    list.innerHTML = items.map(c => `
+      <div class="file-card" onclick="openConversation('${c.session_id}')">
+        <div class="file-card-title">💬 ${c.file_name || c.file_reference_id || 'محادثة'}</div>
+        <div class="file-card-meta">
+          <span class="chip teal">${c.turn_count || 0} سؤال</span>
+          <span class="chip">${(c.updated_at || '').replace('T', ' ').slice(0, 16)}</span>
+        </div>
+        <div style="font-size:10px;color:var(--gray);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          آخر سؤال: ${c.last_query || '—'}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = `<div style="font-size:11px;color:var(--coral);text-align:center;margin-top:20px">تعذّر تحميل المحادثات: ${err.message}</div>`;
+  }
+}
+
+async function openConversation(sessionId) {
+  const detail = document.getElementById('conv-detail');
+  detail.innerHTML = `<div style="font-size:11px;color:var(--gray);text-align:center;margin-top:20px">جارِ فتح المحادثة...</div>`;
+  try {
+    const res = await fetch(`${API_BASE}/api/rag/conversations/${sessionId}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+
+    detail.innerHTML = `
+      <div class="panel-title" style="margin-top:14px">
+        <span>💬 ${data.file_name}</span>
+        <span class="chip purple" style="cursor:pointer" onclick="document.getElementById('conv-detail').innerHTML=''">إغلاق ✕</span>
+      </div>
+      ${data.turns.map(t => `
+        <div class="evidence-card">
+          <div class="evidence-head">
+            <span>سؤال #${t.turn} — ${(t.timestamp || '').replace('T', ' ').slice(0, 16)}</span>
+            <span class="chip ${t.grounded ? 'teal' : ''}">${t.grounded ? '✓ Grounded' : '⚠️ ' + t.answer_status}</span>
+          </div>
+          <div class="evidence-heading">❓ ${t.query}</div>
+          <div class="evidence-body">${t.answer}</div>
+          <div class="file-card-meta" style="margin-top:8px">
+            <span class="chip">RAGAS: ${(t.evaluation?.overall_ragas_score ?? 0).toFixed(2)}</span>
+            <span class="chip">Faithfulness: ${(t.evaluation?.faithfulness_score ?? 0).toFixed(2)}</span>
+            <span class="chip">Relevance: ${(t.evaluation?.answer_relevance ?? 0).toFixed(2)}</span>
+            <span class="chip">Confidence: ${Math.round((t.retrieval?.retrieval_confidence ?? 0) * 100)}%</span>
+            <span class="chip">${t.sources ? t.sources.length : 0} Chunks</span>
+          </div>
+          ${t.sources && t.sources.length ? `
+            <details style="margin-top:8px">
+              <summary style="font-size:10px;font-weight:700;color:var(--purple);cursor:pointer">عرض الأجزاء المسترجعة (Retrieved Chunks)</summary>
+              ${t.sources.map((s, i) => `
+                <div class="evidence-body" style="margin-top:6px">
+                  <div style="font-weight:700;font-size:10px;color:var(--navy);margin-bottom:4px">
+                    [${i + 1}] ${s.heading || s.chapter || 'Chunk'} — صفحة ${s.page || 'N/A'} — Score: ${(s.reranker_score || s.score || 0).toFixed(2)}
+                  </div>
+                  ${s.raw_text || ''}
+                </div>
+              `).join('')}
+            </details>
+          ` : ''}
+        </div>
+      `).join('')}
+    `;
+  } catch (err) {
+    detail.innerHTML = `<div style="font-size:11px;color:var(--coral);text-align:center;margin-top:20px">تعذّر فتح المحادثة: ${err.message}</div>`;
+  }
 }
 </script>
 </body>

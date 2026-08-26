@@ -68,6 +68,31 @@ class IngestRegistry:
             data[content_hash] = record
             self._write(data)
 
+    def list_all(self) -> list[dict[str, Any]]:
+        """All previously ingested books, most-recently-registered first.
+
+        Used to populate a "previously uploaded books" picker in the UI so a book
+        already indexed doesn't have to be re-uploaded on every session — the caller
+        already has everything needed (file_reference_id, curriculum_id, document
+        metadata, chunk counts) to let a user pick it and start querying immediately.
+        """
+        with self._lock:
+            data = self._read()
+            # dict preserves insertion order; reverse so the newest upload is first.
+            return list(reversed(list(data.values())))
+
+    def find_by_file_reference_id(self, file_reference_id: str) -> dict[str, Any] | None:
+        """Resolve a book's registry record (file_name, curriculum_id, etc.) from its
+        file_reference_id. Used e.g. to attach a human-readable file_name to a
+        conversation record, which only ever carries file_reference_id on the request path.
+        """
+        with self._lock:
+            data = self._read()
+            for record in data.values():
+                if record.get("file_reference_id") == file_reference_id:
+                    return record
+        return None
+
     def forget(self, content_hash: str) -> None:
         """Used by force_reingest so a fresh ingest overwrites the stale registry entry
         rather than leaving two records (old hash-match + new) pointing at different

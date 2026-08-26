@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     # local deployments and avoids background telemetry errors from old Chroma clients.
     chroma_anonymized_telemetry: bool = False
     top_k: int = 5
-    candidate_multiplier: int = 8
+    # SPEED: lowered from 8 → 6. This only widens/narrows the pool RRF fusion picks
+    # from locally (Chroma query + in-process ranking) before the network-bound
+    # reranker step ever runs — it does NOT change how many candidates get sent to
+    # the OpenRouter rerank API (that's capped separately by reranker_candidates
+    # below), so this trims local compute/IO with negligible recall risk.
+    candidate_multiplier: int = 6
     # Floor on the raw dense-search fetch size, independent of top_k/candidate_multiplier.
     # Before this existed, a request at the default top_k=5 only pulled candidate_k=40
     # raw dense hits (5*8) - a page-level chunk with a degraded embedding (e.g. from
@@ -29,7 +34,10 @@ class Settings(BaseSettings):
     # it gets dropped before RRF/rerank ever sees it, even though it scores #1 once it
     # does get evaluated. This only affects the cheap initial fetch - the expensive
     # CrossEncoder stage stays capped separately by reranker_candidates regardless.
-    min_candidate_k: int = 160
+    # SPEED: lowered from 160 → 100. Same local-only pool as candidate_multiplier
+    # above; 100 is still far wider than top_k*candidate_multiplier ever needs to be
+    # for a single-book retrieval scope, so this is a pure local-latency trim.
+    min_candidate_k: int = 100
     # Parent/child retrieval: children for matching, parents for generation context.
     parent_chunk_size: int = 1600
     child_chunk_size: int = 650
@@ -49,10 +57,15 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = 3600
     max_sessions: int = 10000
     session_sweep_interval_seconds: int = 300
-    # Lightweight deterministic reranking.
-    semantic_weight: float = 0.30
+    # Lightweight deterministic reranking (local RRF fusion, before the network reranker).
+    # QUALITY: rebalanced semantic vs. keyword. keyword_weight (literal word overlap) was
+    # dominating semantic_weight (meaning-based similarity) 0.40 vs 0.30, which favors
+    # exact-wording matches over paraphrased student questions. Nudged toward semantic so
+    # a reworded question still surfaces the right chunk, while keyword matching still
+    # carries the single highest individual weight for precise terminology/definitions.
+    semantic_weight: float = 0.34
     question_weight: float = 0.10
-    keyword_weight: float = 0.40
+    keyword_weight: float = 0.36
     heading_weight: float = 0.12
     content_type_weight: float = 0.08
     lexical_candidate_k: int = 64
@@ -63,6 +76,13 @@ class Settings(BaseSettings):
     # passages ~0.20-0.25 lower than comparable English ones, so a flat 0.42/0.44 cutoff
     # here silenced valid Arabic answers before the model ever saw the evidence. The real
     # grounding verdict comes from the model's self-reported status, not this pre-check.
+    # NOTE: this deployment's reranker_backend is "openrouter" (cohere/rerank-v3.5), not
+    # the local bge-reranker-v2-m3 this comment was originally calibrated against — cohere's
+    # multilingual scores may not carry the same Arabic penalty. Left unchanged here
+    # deliberately: tightening/loosening a grounding gate without labeled examples risks
+    # trading unnoticed hallucinations for unnoticed false "insufficient evidence" answers
+    # in either direction. Recalibrate this once you have a labeled sample of real Q&A
+    # pairs scored by cohere/rerank-v3.5, not by guesswork.
     min_reranker_score_floor: float = 0.15
     min_retrieval_confidence_floor: float = 0.15
     # When the plain (un-augmented) query already retrieves with confidence at or above
@@ -72,15 +92,31 @@ class Settings(BaseSettings):
     # buys nothing in that case. Only genuinely ambiguous follow-ups (which score below
     # this on the plain query) still pay for the second retrieval, which is exactly the
     # case where it actually changes the answer.
-    skip_contextual_retrieval_confidence: float = 0.75
+    # SPEED: lowered from 0.75 → 0.62. With both embedding and reranking now going over
+    # the network (OpenRouter), a full contextual retry duplicates two network round-trips,
+    # not just cheap local compute — 0.75 was routinely retrying on plain queries that
+    # already retrieved a good, if not perfect, match. 0.62 still retries the genuinely
+    # ambiguous follow-ups (where the contextual query actually changes the answer) while
+    # skipping the retry for a plain query that already landed a solid match.
+    skip_contextual_retrieval_confidence: float = 0.62
     reranker_enabled: bool = True
     reranker_backend: str = "openrouter"
     reranker_model: str = "cohere/rerank-v3.5"
-    reranker_candidates: int = 60
+    # SPEED: lowered from 60 → 25. This is what actually gets sent in the single
+    # OpenRouter /rerank request body — 60 documents in one payload was the single
+    # biggest network-latency cost in the whole pipeline. top_k defaults to 5, so 25
+    # candidates still leaves 5x headroom for the reranker to reorder into the final
+    # top_k*3=15 pre-parent-dedup shortlist; quality impact should be negligible while
+    # payload size (and OpenRouter's processing time for it) drops by more than half.
+    reranker_candidates: int = 25
     embedding_allow_hash_fallback: bool = True
     # Question index is enabled by default.
     question_index_enabled: bool = True
-    max_questions_per_chunk: int = 4
+    # QUALITY: raised from 4 → 6. Only affects ingestion-time cost (more hypothetical
+    # questions generated and embedded per chunk when a book is indexed), never
+    # query-time latency — more question variants per chunk means a wider net for
+    # matching however a student happens to phrase their question.
+    max_questions_per_chunk: int = 6
     ingestion_workers: int = 1
     # Generation backend. Defaults to Groq (cloud, fast, no local model to manage).
     # Set to "ollama" to run generation fully local instead.
