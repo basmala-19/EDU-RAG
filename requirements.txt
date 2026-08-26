@@ -1,0 +1,24 @@
+# Runtime dependencies
+fastapi>=0.115
+python-multipart>=0.0.20
+uvicorn[standard]>=0.34
+pydantic>=2.8
+pydantic-settings>=2.6
+numpy>=1.26
+pyyaml>=6.0
+python-dotenv>=1.0
+pypdf>=5.0
+PyMuPDF>=1.26
+llama-cloud-services>=0.6.90
+python-docx>=1.1
+beautifulsoup4>=4.12
+pandas>=2.2
+sentence-transformers>=3.2
+chromadb>=0.6,<0.7
+posthog<3.0.0
+requests>=2.31
+rank-bm25>=0.2.2
+
+# Test dependencies
+pytest>=8.3
+httpx>=0.28

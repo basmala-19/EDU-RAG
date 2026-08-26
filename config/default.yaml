@@ -1,0 +1,44 @@
+app:
+  name: general-curriculum-rag
+  environment: local
+
+embedding:
+  model: BAAI/bge-m3
+  device: cpu
+
+chunking:
+  parent_chunk_size: 1600
+  child_chunk_size: 650
+  child_overlap: 80
+  child_min_size: 220
+  heading_max_length: 180
+
+retrieval:
+  top_k: 5
+  candidate_multiplier: 4
+
+question_index:
+  enabled: true
+  max_questions_per_chunk: 4
+
+session:
+  max_turns: 6
+  max_history_chars: 3500
+  max_context_chars: 6000
+
+generation:
+  backend: ollama
+  base_url: http://127.0.0.1:11434
+  model: ""
+  timeout: 90
+  allow_extractive_fallback: true
+
+vector_store:
+  provider: chroma
+  path: data/vector_store/chroma
+  collection: curriculum_chunks
+
+supported_languages:
+  - en
+  - ar
+  - mixed

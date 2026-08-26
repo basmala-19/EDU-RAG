@@ -1,0 +1,4 @@
+app:
+  environment: production
+vector_store:
+  provider: chroma

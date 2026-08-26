@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "general-curriculum-rag"
+version = "0.1.0"
+description = "General multilingual curriculum RAG service"
+# chroma-hnswlib 0.7.6 supplies a Windows wheel for CPython 3.11 only.
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "python-multipart>=0.0.20",
+  "uvicorn[standard]>=0.34",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.6",
+  "numpy>=1.26",
+  "pyyaml>=6.0",
+  "python-dotenv>=1.0",
+  "pypdf>=5.0",
+  "PyMuPDF>=1.26",
+  "llama-cloud-services>=0.6.90",
+  "python-docx>=1.1",
+  "beautifulsoup4>=4.12",
+  "pandas>=2.2",
+  "sentence-transformers>=3.2",
+  "chromadb>=0.6,<0.7",
+  # chromadb 0.6.x calls posthog.capture(distinct_id, event, properties) with
+  # positional args. posthog>=3.0 changed capture()'s signature to keyword-only
+  # args, which breaks that call (harmless internal telemetry, but noisy) and
+  # logs "capture() takes 1 positional argument but 3 were given" on every
+  # client start / collection creation. Pin posthog below the breaking change.
+  "posthog<3.0.0",
+  "requests>=2.31",
+  "rank-bm25>=0.2.2",
+]
+
+authors = [
+  { name = "AI Assessment Team" }
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3", "httpx>=0.28"]
+docs = ["nbformat>=5.10"]
+
+[tool.uv]
+# Keep uv's cache on the same drive/filesystem as the project so package
+# installs use real hardlinks instead of falling back to full copies
+# (relevant on Windows when the default cache dir lives on a different
+# drive than the project, e.g. C: vs D:). Path is relative to this file.
+cache-dir = ".uv-cache"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["src*"]

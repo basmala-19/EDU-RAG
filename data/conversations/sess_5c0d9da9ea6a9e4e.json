@@ -1,0 +1,482 @@
+{
+  "session_id": "sess_5c0d9da9ea6a9e4e",
+  "created_at": "2026-08-26T14:10:31.868911+00:00",
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2026-08-26T14:10:31.868911+00:00",
+      "query": "ما العلاقة بين سرعة الموجة وطولها الموجي وترددها؟",
+      "answer": "سرعة الموجة تساوي حاصل ضرب ترددها في طولها الموجي، أي أن v = f λ. ويمكن أيضاً كتابة العلاقة على شكل v = λ⁄T حيث T هو الزمن الدوري للموجة.",
+      "answer_status": "answered",
+      "grounded": true,
+      "sources": [
+        {
+          "chunk_id": "1afb6dc9c69384b5",
+          "page": 109,
+          "source": "Physics-Ar-EB-part1.pdf",
+          "heading": "الموجات الجيبية4-2",
+          "chapter": "الموجات الجيبية4-2",
+          "lesson": "حಔّّل ما جمعته",
+          "section": "مثلث",
+          "topic": null,
+          "heading_path": [
+            "الموجات الجيبية4-2"
+          ],
+          "content_type": "paragraph",
+          "parent_chunk_id": "39d4858b370c5f3f79c6",
+          "score": 0.6941925293445587,
+          "retrieval_confidence": 0.6187272635658456,
+          "reranker_score": 0.5596998,
+          "retrieval_channels": [
+            "semantic",
+            "keyword"
+          ],
+          "context_expanded": true,
+          "raw_text": "نقطة\n:العقة ب السرعة والطول ا\nو والزمن الدوي إذا كان\ns =  = الزمن الدوريT ،  ،  وحدة الثانيÊةv = انتشار اوجة\nf = 1/T  وv = fλ =λ/T\n سرعة اوجة = الàدد × الطول او:أي أن\n)Sinewave(\ny-tgraphs وy-X الفرق\nانتبÊه إÜ احور اìفقي:\n.فوتوغرافيـة للموجـة كاملـة\n.فيديـو Éركـة هـذه النقطـة\nصندوق المعادالت:\n:معاد·ت اوجة\n:الàدد والزمن الدوري\n: اختبر ذلك\nنبضـة تصلـه ¡ الزمـن القـصß نفسـه — وûتلـف السـعة فقـط. الوقت\n) : · تؤثر سعة النبضة ¡ سرعة انتشاره6.4.2( شكل\n102 — الموجات الجيبية4-2",
+          "metadata": {
+            "chapter": "الموجات الجيبية4-2",
+            "chunk_role": "parent",
+            "content_type": "paragraph",
+            "curriculum_id": "cur_99c30be3b58d",
+            "document_title": "الفيزياء البكالوريا المصرية الجـــزء ا",
+            "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+            "heading": "الموجات الجيبية4-2",
+            "heading_level": 1,
+            "heading_path": [
+              "الموجات الجيبية4-2"
+            ],
+            "language": "ar",
+            "lesson": "حಔّّل ما جمعته",
+            "page": 109,
+            "parent_chunk_id": "39d4858b370c5f3f79c6",
+            "parser": "pymupdf",
+            "section": "مثلث",
+            "source": "Physics-Ar-EB-part1.pdf",
+            "source_type": "pdf",
+            "version": "v1",
+            "retrieval_channels": [
+              "semantic",
+              "keyword"
+            ],
+            "distance": 0.40069156885147095,
+            "keyword_score": 7.839869076306072,
+            "rrf_score": 1.0,
+            "reranker_score": 0.5596998,
+            "retrieval_confidence": 0.6187272635658456,
+            "lexical_overlap": 0.4,
+            "heading_overlap": 0.2,
+            "score": 0.6941925293445587,
+            "subject": null,
+            "grade": null,
+            "topic": null,
+            "term": null,
+            "retrieved_child_chunk_id": "1afb6dc9c69384b5",
+            "context_expanded": true
+          }
+        },
+        {
+          "chunk_id": "818cd2e1b2934c6e",
+          "page": 109,
+          "source": "Physics-Ar-EB-part1.pdf",
+          "heading": "الموجات الجيبية4-2",
+          "chapter": "الموجات الجيبية4-2",
+          "lesson": "حಔّّل ما جمعته",
+          "section": "مثلث",
+          "topic": null,
+          "heading_path": [
+            "الموجات الجيبية4-2"
+          ],
+          "content_type": "paragraph",
+          "parent_chunk_id": "8a684351cbe80f9d5e62",
+          "score": 0.6787791079521178,
+          "retrieval_confidence": 0.5791103424561082,
+          "reranker_score": 0.46701634,
+          "retrieval_channels": [
+            "semantic",
+            "keyword"
+          ],
+          "context_expanded": true,
+          "raw_text": ": نصيحة امتحانية\nاذكر أي منحð تقرأ منه\n، لـذا فـإن سـرعةfλ موجـة ¡ الثانيÊـة. وخل ثانيÊـة واحـدة، ينتقـل ا·ضطـراب مسـافةf يُنتـج مصـدر\nوالسعة من λ :كل كمية\n، ومـا أن الàدد يسـاوي مقلـوب الزمـن الـدوري، فـإن السـرعة تسـاوي أيضاـا الطـول v = fλاوجـة\n(اكاý)، y–xðمنح\nوالزمن الدورى من\n. واþلط y–t مخطط\nينهما هو اþطأ اìكÿ\n.اوجة: الظاهرة الê تنتشر فيها ا·هÈازات الناÖة عند نقطة معينÊة خل الوسط احيط تُسîى موجة\nشيوعاا. )Wavesource( مصدر اوجة: النقطة الê تبÊدأ عندها ا·هÈازات تُسîى مصدر اوجة\nm  ووحدتهλ: طول موجة كاملة واحدة يُسîى الطول او ويرمز له ـλالطول ا\nو\nHz ووحدته الهرتزf، ويرمز له ـf الدد: عدد ا·هÈازات الê دث ¡ الثانيÊة يُسîى الàددf\n. تسî موجة جيÌيÊهsinecurveø اوجة ا¯يÌيÊة: اوجه الù يتبع فيها ا·زاحة منحð جي\nيمثـل شكل اوجـة عنـد Éظـة زمنيÊـة معينÊـة، أي يمكـن اعتبÊـاره مثـل صـورة-:y-Xð) منـح1(\nيمثـل حركـة نقطـة واحـدة مـن الوسـط مـع مـرور الزمـن، أي يمكـن اعتبÊـاره مثـل -: y-tð) منـح2(\n: حقيقة أساسية\nالنسبة وجات على\nاÉبل نفسه ت قوة\nالشد نفسه، تزيد زيادة\nالسعة الطاقة الê ملها\nاوجة، لكنها · تُغßّ سرعة\nأرسـل نبضـة عاديـة، ثـم نبضـة قويـة، علـى اÉبـل نفسـه وراقـب الشريـط القمـاä: ّ أن كل\nاوجة. وتعتمد السرعة\nعلى خصائص الوسط،\nكالشد والكتلة لكل وحدة\nطول þيط مشدود. :عﻼقة ﴎعة الموجة\nاـو مقسـوما ا علـى الزمـن الـدوري.",
+          "metadata": {
+            "chapter": "الموجات الجيبية4-2",
+            "chunk_role": "parent",
+            "content_type": "paragraph",
+            "curriculum_id": "cur_99c30be3b58d",
+            "document_title": "الفيزياء البكالوريا المصرية الجـــزء ا",
+            "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+            "heading": "الموجات الجيبية4-2",
+            "heading_level": 1,
+            "heading_path": [
+              "الموجات الجيبية4-2"
+            ],
+            "language": "ar",
+            "lesson": "حಔّّل ما جمعته",
+            "page": 109,
+            "parent_chunk_id": "8a684351cbe80f9d5e62",
+            "parser": "pymupdf",
+            "section": "مثلث",
+            "source": "Physics-Ar-EB-part1.pdf",
+            "source_type": "pdf",
+            "version": "v1",
+            "retrieval_channels": [
+              "semantic",
+              "keyword"
+            ],
+            "distance": 0.45206964015960693,
+            "keyword_score": 7.403062214449637,
+            "rrf_score": 1.0,
+            "reranker_score": 0.46701634,
+            "retrieval_confidence": 0.5791103424561082,
+            "lexical_overlap": 0.4,
+            "heading_overlap": 0.2,
+            "score": 0.6787791079521178,
+            "subject": null,
+            "grade": null,
+            "topic": null,
+            "term": null,
+            "retrieved_child_chunk_id": "818cd2e1b2934c6e",
+            "context_expanded": true
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid",
+        "query_used": "ما العلاقة بين سرعة الموجة وطولها الموجي وترددها؟",
+        "candidate_count": 2,
+        "top_score": 0.6941925293445587,
+        "grounding_threshold": 0.44,
+        "semantic_score": 0.599308431148529,
+        "keyword_score": 7.839869076306072,
+        "question_score": 0.0,
+        "rrf_score": 1.0,
+        "reranker_score": 0.5596998,
+        "retrieval_confidence": 0.6187272635658456
+      },
+      "evaluation": {
+        "faithfulness_score": 0.7625,
+        "context_precision": 0.6829,
+        "context_recall": 0.662,
+        "answer_relevance": 0.808,
+        "overall_ragas_score": 0.7452,
+        "verdict": "PASS",
+        "details": {
+          "context_chunks_count": 2,
+          "reranker_score": 0.5597,
+          "retrieval_confidence": 0.6187,
+          "context_length_chars": 1724,
+          "answer_length_chars": 137,
+          "evaluation_engine": "Multilingual Stem-Aware Hybrid Grounding"
+        }
+      }
+    },
+    {
+      "turn": 2,
+      "timestamp": "2026-08-26T14:15:33.974705+00:00",
+      "query": "ما المقصود بالسرعة المتجهة؟",
+      "answer": "السرعة المتجهة هي كمية فيزيائية لها مقدار (قيمة عددية) واتجاه. تُعبَّر عنها بسهم يوضح اتجاه الحركة ومقدار السرعة على طول ذلك الاتجاه، ويمكن تحليلها إلى مركباتها الأفقية والرأسية. بذلك تختلف عن السرعة العادية التي تُعطى فقط بالمقدار دون الإشارة إلى الاتجاه.",
+      "answer_status": "answered",
+      "grounded": true,
+      "sources": [
+        {
+          "chunk_id": "be1de4a07e7760dc",
+          "page": 11,
+          "source": "Physics-Ar-EB-part1.pdf",
+          "heading": "متجهات السرعة والسرعة النسبية1-1",
+          "chapter": "متجهات السرعة والسرعة النسبية1-1",
+          "lesson": null,
+          "section": null,
+          "topic": null,
+          "heading_path": [
+            "متجهات السرعة والسرعة النسبية1-1"
+          ],
+          "content_type": "paragraph",
+          "parent_chunk_id": "2bb6f203d1a7d0503047",
+          "score": 0.6899872957865397,
+          "retrieval_confidence": 0.6432464583333334,
+          "reranker_score": 0.6543875,
+          "retrieval_channels": [
+            "semantic",
+            "question",
+            "keyword"
+          ],
+          "context_expanded": true,
+          "raw_text": ":من المﻼحظة إﱃ النموذج\nª نشـاط استكشـاف، Îـررك قلـم اÈÝ علـى طـول اسـطرة فقـط، ومـع ذلـك جـاء مسـاه علـى\n2)(العبو+ 2)(السحب الوقـة مـائ¼ً . و دائمًـا مـا يتطابـق طـول اسـا المائـل اقـاس مـع القيمـة\n مجـرد اجمـوع البسـيط (اجمـوع اàÝى) سـاف¶ي العبـو والسـحب. ولعلـك توقعـت أن ت­اكـب اÈركتـان باàمـع اباشـر سـاف¶ي العبـو والسـحب، لكن تُظهـر نتاâك\nا¸اصـة بالتجربـة خ¼ف ذلـك. والنمـوذج التـاã يفسر ـر هـذه ا¼حظات. : مصطಔّح\nمتجه:السرعة احصلة\nالسرعة كمية متجهة:\nالسرعة الواحد الذي\nفهي كمية - ) مقدا سرعة اàسم واæاه الذى يتحرك فيه معًاvelocity( تصف كلمة السرعة\nله اسا نفسه تجهي\nمتجهة تُمثّل بسهم. سرعة مُركّب معًا. وأحيانًا يكون àسم واحد مركبتا سرعة: كقاب يدفعه محركه بينما Öمله تيا النهر ª الوقت\n:v\n نفسه. عندئذٍ ي­اكب السهمان من الرأس إè الذيل ليكوّنا سرعة محصلة واحة\nv\n = v1\n + v2\n\ny\nوهـذا هـو جمـع اتجهـات (اàمـع اæاهـي)، وهـي عمليـة هندسـية  حسـابية. êب جمـع متجهات\nالسـرعة هندسـيّا Òêـاد احصلـة؛ و يصـح اàمـع اàÝي البسـيط للمقاديـر إ عندمـا تكـون اتجهـات\nعلـى اسـتقامة واحدة. x\nتحಔّيل السرعة إلى المركبتين:\nvx = vcosθيمكن Îليل أي سرعة إè مركبت متعامدت على أحد احورين\nvy = vsinθبينما على احو اíخر\nمركبة العبو وحدها Îدد زمن العبو، بينما Îدد اركبة الطولية مقدا اîراف مع مجرى النهر. y\nv = √)vx(2 + )vy(2تعامل مع كل محو على حدة، ثم أعد ال­كيب باستخدام\nالسرعة هي كمية متجهة\n)نموذج اثلث القائم (مثلث اتجهات\nمنظر علوي للنهر\nطريقة الرأس إè الذيل\nx\ny\n)x(اركبة ا©فقية\nتيا\nvy =\nv\nقاب\nvsinθ\nالسرعة\ny\nθ\nvx = vcosθ\nx\nx\n)5.1.1( شكل\n)y(اركبة الرأسية\nنقطة\n[م/ث] سرعة التيا؛",
+          "metadata": {
+            "chapter": "متجهات السرعة والسرعة النسبية1-1",
+            "chunk_role": "parent",
+            "content_type": "paragraph",
+            "curriculum_id": "cur_99c30be3b58d",
+            "document_title": "الفيزياء البكالوريا المصرية الجـــزء ا",
+            "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+            "heading": "متجهات السرعة والسرعة النسبية1-1",
+            "heading_level": 1,
+            "heading_path": [
+              "متجهات السرعة والسرعة النسبية1-1"
+            ],
+            "language": "ar",
+            "page": 11,
+            "parent_chunk_id": "2bb6f203d1a7d0503047",
+            "parser": "pymupdf",
+            "source": "Physics-Ar-EB-part1.pdf",
+            "source_type": "pdf",
+            "version": "v1",
+            "retrieval_channels": [
+              "semantic",
+              "question",
+              "keyword"
+            ],
+            "distance": 0.42893123626708984,
+            "keyword_score": 2.0119885711742125,
+            "question_distance": 0.36911237239837646,
+            "rrf_score": 1.0,
+            "reranker_score": 0.6543875,
+            "retrieval_confidence": 0.6432464583333334,
+            "lexical_overlap": 0.3333333333333333,
+            "heading_overlap": 0.3333333333333333,
+            "score": 0.6899872957865397,
+            "subject": null,
+            "grade": null,
+            "lesson": null,
+            "section": null,
+            "topic": null,
+            "term": null,
+            "retrieved_child_chunk_id": "be1de4a07e7760dc",
+            "context_expanded": true
+          }
+        },
+        {
+          "chunk_id": "b3bef5f1319d5402",
+          "page": 9,
+          "source": "Physics-Ar-EB-part1.pdf",
+          "heading": "متجهات السرعة والسرعة النسبية1-1",
+          "chapter": "متجهات السرعة والسرعة النسبية1-1",
+          "lesson": null,
+          "section": null,
+          "topic": null,
+          "heading_path": [
+            "متجهات السرعة والسرعة النسبية1-1"
+          ],
+          "content_type": "paragraph",
+          "parent_chunk_id": "ce75f89a748af8cdee49",
+          "score": 0.6882898151079814,
+          "retrieval_confidence": 0.5198294929045385,
+          "reranker_score": 0.29457554,
+          "retrieval_channels": [
+            "semantic",
+            "question",
+            "keyword"
+          ],
+          "context_expanded": true,
+          "raw_text": "2 — متجهات السرعة والسرعة النسبية1-1\n— متجهات السرعة والسرعة النسبية1-1 الدرس\nلماذا ترسو عّبارة موَهة مباشرة عبر النيل عند نقطة فى اتجاه مصب النيل بمسافة؟\nلماذا يترك المطر المتساقط خطوًا مائلة على نافذة حافلة متحركة؟\n.تشرح كيف ت­اكب سرعتان لعمل سرعة محصلة واحدة.1\n..سب اركبت اتعامدت لسرعة ما وتعيد تركيبهما2\n: حقيقة أساسية\n:اثلثات القائمة\nc2 = a2 + b2\nتمثل متجهات السرعة\nاتعامدة\nبيانيا مثلث قائم الزاوية\n)1.1.1( شكل)2.1.1( شكل\nتوجّـه عبرـاة النيـل مقدمتهـا مباشـرة ـو نقطـة الرسـو علـى الضفـة اقابلـة.  يتـغر أداء احـرك\n(اوتـو) أبـدًا، و تنحـرف اقدمـة أبـدا — ومـع ذلـك ترسـو العبرـاة عنـد نقطـة أسـفل مصـب النهـر\nبمسـافة عـن الهـدف الـذي توجر هـت إليـه. وª صبـاح نفـس اليـوم ، وأنـت ª ا©توبيـس، يسـقط اطـر\nأسـيّا تمامًـا، لكـن ا¸طـوط ال¶ ي­كهـا علـى نافذتـك تكـون مائلـة غـم ذلـك.\nمـع عـدم تغـي(ثبـات) اعـدادات محـرك العبر ـاة أبـدًا. إذا أصبـح تيـا النهـر أسـرع، فهـل)( أ\nسيسـتغرق العبـو زمنًـا أطـول أم نفـس الزمـن أم زمنًـا أقصـر؟\nمـن داخـل ا©توبيـس (اÈافلـة) اتحـرك، هـل ا¸طـوط المائلـة للمطـر قادمـة مـن أمـام )(ب\n:سؤال الدرس\nستتعلم\n:بنهاية هذا الدس، ستكون قادًا على أن\n.ّد سرعة جسم كما يراها مراقب متحرك3\nالظاهرة — توقّع قبل أن تستمر\nمُ¼حظتان كل يوم، ومبدأ واحد كامن واءهما.\nتوقّع قبل أن تستمر — اكتب توقعك:\nا©توبيـس أم مـن خلفـه؟",
+          "metadata": {
+            "chapter": "متجهات السرعة والسرعة النسبية1-1",
+            "chunk_role": "parent",
+            "content_type": "paragraph",
+            "curriculum_id": "cur_99c30be3b58d",
+            "document_title": "الفيزياء البكالوريا المصرية الجـــزء ا",
+            "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+            "heading": "متجهات السرعة والسرعة النسبية1-1",
+            "heading_level": 1,
+            "heading_path": [
+              "متجهات السرعة والسرعة النسبية1-1"
+            ],
+            "language": "ar",
+            "page": 9,
+            "parent_chunk_id": "ce75f89a748af8cdee49",
+            "parser": "pymupdf",
+            "source": "Physics-Ar-EB-part1.pdf",
+            "source_type": "pdf",
+            "version": "v1",
+            "retrieval_channels": [
+              "semantic",
+              "question",
+              "keyword"
+            ],
+            "distance": 0.4345895051956177,
+            "keyword_score": 2.0356756599430446,
+            "question_distance": 0.36911237239837646,
+            "rrf_score": 1.0,
+            "reranker_score": 0.29457554,
+            "retrieval_confidence": 0.5198294929045385,
+            "lexical_overlap": 0.3333333333333333,
+            "heading_overlap": 0.3333333333333333,
+            "score": 0.6882898151079814,
+            "subject": null,
+            "grade": null,
+            "lesson": null,
+            "section": null,
+            "topic": null,
+            "term": null,
+            "retrieved_child_chunk_id": "b3bef5f1319d5402",
+            "context_expanded": true
+          }
+        },
+        {
+          "chunk_id": "1c960b9ae5697b90",
+          "page": 81,
+          "source": "Physics-Ar-EB-part1.pdf",
+          "heading": "قوانين كبلر والجاذبية الكونية12-1",
+          "chapter": "قوانين كبلر والجاذبية الكونية12-1",
+          "lesson": "حಔّّل ما جمعته",
+          "section": "مثلث",
+          "topic": null,
+          "heading_path": [
+            "قوانين كبلر والجاذبية الكونية12-1"
+          ],
+          "content_type": "paragraph",
+          "parent_chunk_id": "2e0ef8a115a73f39bf7a",
+          "score": 0.6927825194683352,
+          "retrieval_confidence": 0.513700728345974,
+          "reranker_score": 0.23509122,
+          "retrieval_channels": [
+            "semantic",
+            "keyword"
+          ],
+          "context_expanded": true,
+          "raw_text": "يتحـرك كل كوكـب Ç مسـار بي¦ـاوى (قطـع ناقـص).القانـون اول\nتقـع الشـمس عنـد إحـدى بؤرتي­ـه. وأطـول قطـر هـو احـور اكª؛ . وبالنسـبة ـدار ارض، يسـاوي aªونصفـه هـو نصـف احـور اك\n).1AU = 1.50×1011m(  وحـدة فلكيـة واحـدةa\nيقطـع متجـه نصـف القطـر امتـد مـن الشـمس إ كوكـب مـا مسـاحات متسـاوÅة.êالقانـون الثـا\nب متجـه نصـفθÇ أوقـات متسـاوÅة ، وبالتـاï تظـل السـرعة اسـاحية ثابت­ـة. ، فـإن الزاوÅـة\n1\n2rvsinθ = 1\n2r1v1 = 1\n2r2v2 = constant ،v  ومتجــه الســرعةr القطــر\n)، تكـون السـرعة عمو½يـة علـى متجـه نصـف القطـر، r2()، وعنـد أبعـد نقطـةr1( عنـد أقـرب نقطـة\nوÅتحـرك الكوكـب بسـرعة أكª كلمـا اقÏب مـن الشـمس.r1v1 = r2v2 ، sinθ = 1:لـذا فـإن",
+          "metadata": {
+            "chapter": "قوانين كبلر والجاذبية الكونية12-1",
+            "chunk_role": "parent",
+            "content_type": "paragraph",
+            "curriculum_id": "cur_99c30be3b58d",
+            "document_title": "الفيزياء البكالوريا المصرية الجـــزء ا",
+            "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+            "heading": "قوانين كبلر والجاذبية الكونية12-1",
+            "heading_level": 1,
+            "heading_path": [
+              "قوانين كبلر والجاذبية الكونية12-1"
+            ],
+            "language": "ar",
+            "lesson": "حಔّّل ما جمعته",
+            "page": 81,
+            "parent_chunk_id": "2e0ef8a115a73f39bf7a",
+            "parser": "pymupdf",
+            "section": "مثلث",
+            "source": "Physics-Ar-EB-part1.pdf",
+            "source_type": "pdf",
+            "version": "v1",
+            "retrieval_channels": [
+              "semantic",
+              "keyword"
+            ],
+            "distance": 0.3973916017722158,
+            "keyword_score": 1.516409495168945,
+            "rrf_score": 1.0,
+            "reranker_score": 0.23509122,
+            "retrieval_confidence": 0.513700728345974,
+            "lexical_overlap": 0.3333333333333333,
+            "heading_overlap": 0.0,
+            "score": 0.6927825194683352,
+            "subject": null,
+            "grade": null,
+            "topic": null,
+            "term": null,
+            "retrieved_child_chunk_id": "1c960b9ae5697b90",
+            "context_expanded": true
+          }
+        },
+        {
+          "chunk_id": "ef4b3fa779855af3",
+          "page": 12,
+          "source": "Physics-Ar-EB-part1.pdf",
+          "heading": "متجهات السرعة والسرعة النسبية1-1",
+          "chapter": "متجهات السرعة والسرعة النسبية1-1",
+          "lesson": null,
+          "section": "مثلث",
+          "topic": null,
+          "heading_path": [
+            "متجهات السرعة والسرعة النسبية1-1"
+          ],
+          "content_type": "paragraph",
+          "parent_chunk_id": "ee17c5b5ae27b139b9d2",
+          "score": 0.6921342074076334,
+          "retrieval_confidence": 0.5029579846792196,
+          "reranker_score": 0.22040996,
+          "retrieval_channels": [
+            "semantic",
+            "question",
+            "keyword"
+          ],
+          "context_expanded": true,
+          "raw_text": "تتحرك طائرة بسرعة\n60ms-1ثابتة مقداها\nوسرعة تيا النهر4.0ms–1 = اعطيات: سرعة القاب\nعلى ا©فقي.30° بزاوية\n(عمودية عليها).3.0ms–1 =\nاعطيات واطلوب:\nأوجد اتفاع الذي\n.اطلوب: سرعة القاب بالنسبة إè ضفة النهر\n5.0sتكتسبه خ¼ل\n)4.0ms–1(اسم مثلث متجهات قائم الزاوية، ضلعاه القائمان سرعة القاب\nالتمثيل:\n) ويمثرل وتره سرعة القاب احصلة.3.0ms–1(وسرعة تيا النهر\n: نظرية فيثاغورث\nعندما يكون متجهان\n، واحسب مجموعy وxحلّل السرعة إè اæاه متعامدين على احورين\nعمودي فإن:\nأو فرق كل مركبة باستخدام\nاساتيجية:\nv = √)v1(2 + )v2(2\nv = √)vx(2 + )vy(2\nvx = 3.0ms–1\n:على طول ضفة النهر\nvy = 4.0ms–1\n:عÝ النهر\n:ال اوضح\nv = √3.02 + 4.02 = √25 = 5ms–1\n5.0ms-1إذن، سرعة القاب بالنسبة إè ضفة النهر هي\n)، لكنـه أصغر من 4.0ms-1(Ý أكÝ مـن اركبـة افـردة ا©ك5.0ms-1úالنـا\n)، وهـذا متوقّـع ©ن مركـب¶ي السـرعة 7.0ms-1(اجمـوع اàÝي البسـيط\nمنطقية ال:\n: حقيقة أساسية\nاثلـث القائـم الزاويـة اعـروف.5 – 4 – 3 متعامدتـان. كمـا تـشكّل ا©قـام\nالضلعان القائمان\n)؟7.0ms-1() وليست5.0ms-1(لماذا تكون السرعة احصلة\nفسّرها بنفسك:\n(طول)3(عبو) و4\n.5يُعطيان وترًا مقداه",
+          "metadata": {
+            "chapter": "متجهات السرعة والسرعة النسبية1-1",
+            "chunk_role": "parent",
+            "content_type": "paragraph",
+            "curriculum_id": "cur_99c30be3b58d",
+            "document_title": "الفيزياء البكالوريا المصرية الجـــزء ا",
+            "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+            "heading": "متجهات السرعة والسرعة النسبية1-1",
+            "heading_level": 1,
+            "heading_path": [
+              "متجهات السرعة والسرعة النسبية1-1"
+            ],
+            "language": "ar",
+            "page": 12,
+            "parent_chunk_id": "ee17c5b5ae27b139b9d2",
+            "parser": "pymupdf",
+            "section": "مثلث",
+            "source": "Physics-Ar-EB-part1.pdf",
+            "source_type": "pdf",
+            "version": "v1",
+            "retrieval_channels": [
+              "semantic",
+              "question",
+              "keyword"
+            ],
+            "distance": 0.42177486419677734,
+            "keyword_score": 2.0036619363160044,
+            "question_distance": 0.36911237239837646,
+            "rrf_score": 1.0,
+            "reranker_score": 0.22040996,
+            "retrieval_confidence": 0.5029579846792196,
+            "lexical_overlap": 0.3333333333333333,
+            "heading_overlap": 0.3333333333333333,
+            "score": 0.6921342074076334,
+            "subject": null,
+            "grade": null,
+            "lesson": null,
+            "topic": null,
+            "term": null,
+            "retrieved_child_chunk_id": "ef4b3fa779855af3",
+            "context_expanded": true
+          }
+        }
+      ],
+      "retrieval": {
+        "mode": "hybrid",
+        "query_used": "ما المقصود بالسرعة المتجهة؟",
+        "candidate_count": 4,
+        "top_score": 0.6899872957865397,
+        "grounding_threshold": 0.44,
+        "semantic_score": 0.5710687637329102,
+        "keyword_score": 2.0119885711742125,
+        "question_score": 0.6308876276016235,
+        "rrf_score": 1.0,
+        "reranker_score": 0.6543875,
+        "retrieval_confidence": 0.6432464583333334
+      },
+      "evaluation": {
+        "faithfulness_score": 0.68,
+        "context_precision": 0.6957,
+        "context_recall": 0.6267,
+        "answer_relevance": 0.6933,
+        "overall_ragas_score": 0.6791,
+        "verdict": "NEEDS_IMPROVEMENT",
+        "details": {
+          "context_chunks_count": 4,
+          "reranker_score": 0.6544,
+          "retrieval_confidence": 0.6432,
+          "context_length_chars": 4416,
+          "answer_length_chars": 256,
+          "evaluation_engine": "Multilingual Stem-Aware Hybrid Grounding"
+        }
+      }
+    }
+  ],
+  "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+  "file_name": "Physics-Ar-EB-part1.pdf",
+  "curriculum_id": "cur_99c30be3b58d",
+  "version": "v1",
+  "updated_at": "2026-08-26T14:15:33.974705+00:00"
+}
