@@ -5,6 +5,7 @@
 
 # Python environments and generated metadata
 .venv/
+.uv-cache/
 __pycache__/
 *.py[cod]
 *.egg-info/

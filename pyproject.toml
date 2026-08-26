@@ -25,6 +25,12 @@ dependencies = [
   "pandas>=2.2",
   "sentence-transformers>=3.2",
   "chromadb>=0.6,<0.7",
+  # chromadb 0.6.x calls posthog.capture(distinct_id, event, properties) with
+  # positional args. posthog>=3.0 changed capture()'s signature to keyword-only
+  # args, which breaks that call (harmless internal telemetry, but noisy) and
+  # logs "capture() takes 1 positional argument but 3 were given" on every
+  # client start / collection creation. Pin posthog below the breaking change.
+  "posthog<3.0.0",
   "requests>=2.31",
   "rank-bm25>=0.2.2",
 ]
@@ -36,6 +42,13 @@ authors = [
 [project.optional-dependencies]
 test = ["pytest>=8.3", "httpx>=0.28"]
 docs = ["nbformat>=5.10"]
+
+[tool.uv]
+# Keep uv's cache on the same drive/filesystem as the project so package
+# installs use real hardlinks instead of falling back to full copies
+# (relevant on Windows when the default cache dir lives on a different
+# drive than the project, e.g. C: vs D:). Path is relative to this file.
+cache-dir = ".uv-cache"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
