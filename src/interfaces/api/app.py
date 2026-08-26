@@ -46,30 +46,33 @@ from src.application.session import LearningSessionStore
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Curriculum RAG API",
-    version="1.0.0",
+    title="Curriculum RAG API — Production Educational Intelligence",
+    version="2.0.0",
     description=(
-        "Production-oriented educational RAG API for Arabic/English curriculum PDFs.\n\n"
-        "**Typical flow:** `POST /api/rag/upload` a file (backend generates "
-        "`file_reference_id`, `curriculum_id`, `version`) → `POST /api/rag/response` with "
-        "`file_reference_id` + a question to get a grounded, evidence-cited answer with evaluation metrics.\n\n"
-        "A live interactive testing console is available at [`/console`](/console)."
+        "### Enterprise-Grade Multilingual Educational RAG Engine & Evaluation Platform\n\n"
+        "Engineered for Arabic, English, and Mixed curriculum textbooks with **Agentic OCR repair**, "
+        "**Hybrid Dense/BM25/QA Retrieval**, **Cross-Encoder Reranking**, **Parent-Child Context Expansion**, "
+        "and **Calibrated RAGAS Quality Metrics**.\n\n"
+        "🔗 **Interactive Playground Console**: [`/console`](/console)\n"
+        "📑 **Core Architecture**: LlamaParse Tier 2 OCR + ChromaDB Vector Index + Cohere Rerank-v3.5"
     ),
-    contact={"name": "Curriculum RAG"},
+    contact={"name": "Curriculum RAG Engineering Team"},
     openapi_tags=[
-        {"name": "system", "description": "Service health and operational endpoints."},
-        {"name": "ingestion", "description": "File upload and indexing."},
-        {"name": "response", "description": "Single student-facing retrieval + generation operation."},
-        {"name": "evaluation", "description": "RAG Quality Evaluation and RAGAS metrics suite."},
-        {"name": "conversations", "description": "Persisted conversation history: the book used, every Q&A turn, retrieved chunks, and evaluation scores."},
+        {"name": "response", "description": "Grounded question answering with page-level evidence and RAGAS metrics."},
+        {"name": "ingestion", "description": "Curriculum document uploading, LlamaParse OCR, and background indexing."},
+        {"name": "library", "description": "Manage and query previously indexed curriculum books."},
+        {"name": "evaluation", "description": "On-demand RAGAS quality benchmarks and diagnostic metrics."},
+        {"name": "conversations", "description": "Persistent multi-turn conversation logs and audit trails."},
+        {"name": "system", "description": "Service readiness, vector store status, and health checks."},
     ],
     swagger_ui_parameters={
         "docExpansion": "list",
-        "defaultModelsExpandDepth": -1,
+        "defaultModelsExpandDepth": 2,
         "displayRequestDuration": True,
         "filter": True,
         "tryItOutEnabled": True,
         "persistAuthorization": True,
+        "syntaxHighlight.theme": "monokai",
     },
 )
 
@@ -318,7 +321,7 @@ def ingestion_job_status(job_id: str) -> IngestionJobResponse:
 @app.get(
     "/api/rag/books",
     response_model=LibraryResponse,
-    tags=["ingestion"],
+    tags=["library"],
     summary="List previously uploaded books",
     description=(
         "Returns every book already ingested and still on record (most recent first), "
@@ -330,7 +333,7 @@ def ingestion_job_status(job_id: str) -> IngestionJobResponse:
 @app.get(
     "/api/rag/documents",
     response_model=LibraryResponse,
-    tags=["ingestion"],
+    tags=["library"],
     summary="List previously uploaded documents (alias for /api/rag/books)",
     include_in_schema=True,
 )
@@ -625,19 +628,29 @@ def rag_response(request: ResponseRequest) -> ResponsePayload:
         session_store.append(session_id, request.query, answer)
 
         expanded_count = sum(1 for item in results if item["metadata"].get("context_expanded"))
+        def _clean_src_text(val: Any) -> str | None:
+            if not val:
+                return None
+            from src.infrastructure.ar_text import repair_ocr_artifacts
+            s = repair_ocr_artifacts(str(val)).strip()
+            s = re.sub(r"\s+", " ", s)
+            if re.match(r"^(?:مثلث|دائرة|مربع|مستطيل|[▲▼◄►•▪=><~]+|\s*=\s*[\d.]+\s*[a-zA-Z\d^]+)\s*$", s):
+                return None
+            return s or None
+
         sources = [
             ResponseSource(
                 chunk_id=item["chunk_id"],
                 page=item["metadata"].get("page"),
                 source=item["metadata"].get("source"),
-                heading=item["metadata"].get("heading"),
-                chapter=item["metadata"].get("chapter"),
-                lesson=item["metadata"].get("lesson"),
-                section=item["metadata"].get("section"),
-                topic=item["metadata"].get("topic"),
+                heading=_clean_src_text(item["metadata"].get("heading")),
+                chapter=_clean_src_text(item["metadata"].get("chapter")),
+                lesson=_clean_src_text(item["metadata"].get("lesson")),
+                section=_clean_src_text(item["metadata"].get("section")),
+                topic=_clean_src_text(item["metadata"].get("topic")),
                 # Chroma flattens list metadata to a " > "-joined string on storage;
                 # split_heading_path normalizes either form back to a clean list.
-                heading_path=split_heading_path(item["metadata"].get("heading_path")) or None,
+                heading_path=[_clean_src_text(p) for p in (split_heading_path(item["metadata"].get("heading_path")) or []) if _clean_src_text(p)] or None,
                 content_type=item["metadata"].get("content_type"),
                 parent_chunk_id=item["metadata"].get("parent_chunk_id"),
                 score=float(item.get("score", 0.0)),
@@ -646,7 +659,7 @@ def rag_response(request: ResponseRequest) -> ResponsePayload:
                 retrieval_channels=list(item["metadata"].get("retrieval_channels") or []),
                 context_expanded=bool(item["metadata"].get("context_expanded")),
                 raw_text=item.get("raw_text"),
-                metadata=item["metadata"],
+                metadata={k: v for k, v in item["metadata"].items() if v is not None and k not in {"chunk_role"}},
             )
             for item in results
         ]

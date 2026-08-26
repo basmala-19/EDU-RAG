@@ -195,36 +195,60 @@ class EvaluationResponse(BaseModel):
 class ResponsePayload(BaseModel):
     """Backend-owned output contract for the response endpoint."""
     model_config = ConfigDict(json_schema_extra={"example": {
-        "session_id": "sess_12345",
-        "curriculum_id": "cur_8b5d7f5edb84",
+        "session_id": "sess_1749440b537b506b",
+        "curriculum_id": "cur_99c30be3b58d",
         "version": "v1",
-        "file_reference_id": "0567486a32785a3d6e708f40dbf2cff7",
-        "answer": "المعرفة هي المعلومات التي تم تحليلها وتنظيمها بشكل منهجي لتساعد في حل المشكلات.",
+        "file_reference_id": "df114f17a009f16e3a216ad230711f23",
+        "answer": "قانون نيوتن للجاذبية الكونية ينص على أن كل جسمين في الكون يتجاذبان بقوة تتناسب طرديًا مع حاصل ضرب كتلتيهما وعكسيًا مع مربع المسافة بين مركزيهما: F = G·m₁·m₂ / r².",
         "answer_status": "answered",
         "grounded": True,
-        "sources": [],
+        "sources": [
+            {
+                "chunk_id": "c30aaa8c6aaa6734",
+                "page": 81,
+                "source": "Physics-Ar-EB-part1.pdf",
+                "heading": "قوانين كبلر والجاذبية الكونية",
+                "chapter": "قوانين كبلر والجاذبية الكونية",
+                "lesson": "تحليل واستنتاج",
+                "score": 0.94,
+                "retrieval_confidence": 0.98,
+                "reranker_score": 0.98,
+                "context_expanded": True,
+                "raw_text": "قانون نيوتن للجاذبية الكونية: يجذب كل جسم كل جسم آخر بقوة تتناسب طرديًا مع حاصل ضرب الكتلتين وعكسيًا مع مربع المسافة..."
+            }
+        ],
         "retrieval": {
             "mode": "hybrid",
-            "query_used": "ما هي المعرفة",
+            "query_used": "ما قانون نيوتن للجاذبية الكونية؟",
             "candidate_count": 5,
-            "top_score": 0.7907,
+            "top_score": 0.94,
             "grounding_threshold": 0.44,
-            "semantic_score": 0.5857,
-            "keyword_score": 7.057,
-            "question_score": 0.9109,
-            "rrf_score": 0.9841,
-            "reranker_score": 0.6750,
-            "retrieval_confidence": 0.8050
+            "semantic_score": 0.92,
+            "keyword_score": 9.68,
+            "question_score": 0.95,
+            "rrf_score": 0.98,
+            "reranker_score": 0.98,
+            "retrieval_confidence": 0.98
         },
         "evaluation": {
-            "faithfulness_score": 0.9650,
-            "context_precision": 0.8900,
-            "context_recall": 0.9200,
-            "answer_relevance": 0.9500,
-            "overall_ragas_score": 0.9350,
-            "verdict": "PASS"
+            "faithfulness_score": 0.965,
+            "context_precision": 0.925,
+            "context_recall": 0.940,
+            "answer_relevance": 0.950,
+            "overall_ragas_score": 0.945,
+            "verdict": "PASS",
+            "details": {
+                "context_chunks_count": 5,
+                "reranker_score": 0.98,
+                "retrieval_confidence": 0.98,
+                "evaluation_engine": "Multilingual Stem-Aware Hybrid Grounding"
+            }
         },
-        "session_metadata": {"session_turn": 1}
+        "session_metadata": {
+            "session_turn": 1,
+            "generation_backend": "groq",
+            "retrieval_confidence": 0.98
+        }
     }})
     session_id: str = Field(description="Learning-session ID used for this turn. Generated or reused by the backend.")
     curriculum_id: str = Field(description="Curriculum identity resolved by the backend from the indexed document.")
