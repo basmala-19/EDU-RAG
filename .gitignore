@@ -1,0 +1,102 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# UV
+# =========================
+.uv/
+uv.lock
+
+# =========================
+# IDE / Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Testing / Coverage
+# =========================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# =========================
+# Type Checking / Linters
+# =========================
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# =========================
+# RAG Data
+# =========================
+data/rag/
+
+# =========================
+# Question Bank Data
+# =========================
+data/question_bank/
+
+# =========================
+# Generated / Temporary Files
+# =========================
+tmp/
+temp/
+*.tmp
+*.bak
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Build / Distribution
+# =========================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Local databases
+# =========================
+*.db
+*.sqlite
+*.sqlite3
