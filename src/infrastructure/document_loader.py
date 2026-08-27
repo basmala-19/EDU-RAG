@@ -119,26 +119,59 @@ def _load_pdf_with_llamaparse(path: Path, base: dict[str, Any], seed: dict[str, 
     # `help(client.parsing.parse)`) after installing, and adjust the field access below
     # to match — the polling/upload flow and processing_options shape should hold even
     # if an exact attribute name differs.
-    from llama_cloud import LlamaCloud
+    import time
+    import requests
 
-    client = LlamaCloud(api_key=settings.llama_cloud_api_key)
-    result = client.parsing.parse(
-        upload_file=str(path),
-        tier="agentic",
-        version="latest",
-        processing_options={"cost_optimizer": {"enable": True}},
-        expand=["markdown"],
-    )
+    headers = {"Authorization": f"Bearer {settings.llama_cloud_api_key}"}
+    with open(str(path), "rb") as f:
+        files = {"file": (path.name, f, "application/pdf")}
+        data = {
+            "tier": "agentic",
+            "version": "latest",
+            "language": "ar",
+        }
+        resp = requests.post(
+            "https://api.cloud.llamaindex.ai/api/parsing/upload",
+            headers=headers,
+            files=files,
+            data=data,
+            timeout=120,
+        )
+    if resp.status_code != 200:
+        raise RuntimeError(f"LlamaParse upload failed ({resp.status_code}): {resp.text}")
 
-    pages = list(getattr(getattr(result, "markdown", None), "pages", None) or [])
-    page_texts = [str(getattr(p, "markdown", "") or "") for p in pages]
-    if not page_texts:
+    job_id = resp.json().get("id")
+    if not job_id:
+        raise RuntimeError(f"LlamaParse returned no job ID: {resp.text}")
+
+    max_wait = 300
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        status_resp = requests.get(f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}", headers=headers, timeout=30)
+        status_data = status_resp.json() if status_resp.status_code == 200 else {}
+        status_str = str(status_data.get("status", "")).upper()
+        if status_str in ("SUCCESS", "COMPLETED"):
+            break
+        if status_str in ("ERROR", "FAILED"):
+            raise RuntimeError(f"LlamaParse job {job_id} failed: {status_data.get('error_message', status_str)}")
+        time.sleep(2)
+
+    result_resp = requests.get(f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}/result/json", headers=headers, timeout=60)
+    if result_resp.status_code == 200:
+        result_json = result_resp.json()
+        pages = result_json.get("pages", []) or [{"page": 1, "text": result_json.get("markdown", "")}]
+    else:
+        result_resp = requests.get(f"https://api.cloud.llamaindex.ai/api/parsing/job/{job_id}/result/markdown", headers=headers, timeout=60)
+        markdown_text = result_resp.json().get("markdown", "") if result_resp.status_code == 200 else ""
+        pages = [{"page": 1, "text": markdown_text}]
+
+    if not pages:
         return None
 
-    # Build the TOC index once, from every page's own text, before the line-by-line
-    # heading walk below — so it's available from page 1 onward, not just for pages after
-    # wherever the TOC happens to sit. See src.application.toc.TocIndex; it's purely
-    # assistive and never overrides an explicit label or unambiguous structural marker.
+    page_texts = [str(p.get("text") or p.get("markdown") or "") for p in pages]
+    if not any(t.strip() for t in page_texts):
+        return None
+
     toc_index = TocIndex.build(page_texts)
 
     state = dict(seed)

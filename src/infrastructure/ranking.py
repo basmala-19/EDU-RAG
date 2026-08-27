@@ -113,13 +113,18 @@ def rerank_and_dedup(
         overlap = len(q & doc_tokens) / max(len(q), 1) if q else 0.5
         h_overlap = len(q & heading_tokens) / max(len(q), 1) if q else 0.0
         exact = 1.0 if q and q.issubset(doc_tokens) else 0.0
-        ctype = 1.0 if meta.get("content_type") in {"definition", "paragraph", "example", "table"} else 0.5
+        ctype = 1.0 if meta.get("content_type") in {"definition", "paragraph", "example", "table"} else 0.8
 
-        direct = (0.24 * exact + 0.18 * overlap + 0.10 * h_overlap) if definition_q else (0.14 * overlap + 0.08 * h_overlap)
+        kw_score = float(item.get("keyword_score", 0.0))
+        kw_norm = min(1.0, kw_score / 15.0) if kw_score else 0.0
+        lex_sim = max(kw_norm, overlap)
+
         dist = _get_distance(item)
-        dense_sim = max(0.0, 1.0 - dist) if dist is not None else 0.5
+        dense_sim = max(0.0, 1.0 - dist) if dist is not None and not item.get("keyword_match") else 0.5
+        if item.get("keyword_match") and dist is not None and dist < 0.3:
+            dense_sim = max(dense_sim, 0.75)
 
-        score = 0.50 * dense_sim + 0.35 * direct + 0.15 * ctype
+        score = 0.50 * dense_sim + 0.35 * lex_sim + 0.10 * exact + 0.05 * h_overlap + 0.05 * ctype
         ranked.append({
             **item,
             "score": float(min(1.0, score)),
@@ -151,10 +156,9 @@ def rerank_and_dedup(
         dist = _get_distance(x)
         dense_sim = max(0.0, 1.0 - dist) if dist is not None else 0.5
 
-        effective_sim = max(raw_rer, 0.50 * raw_rer + 0.50 * dense_sim)
+        effective_sim = max(raw_rer, 0.50 * raw_rer + 0.50 * float(x["score"]))
         if effective_sim >= 0.35:
             calibrated_sim = 0.80 + 0.18 * min(1.0, (effective_sim - 0.35) / 0.40)
-            # Lexical overlap adds a bonus to confidence, never a penalty
             conf = min(0.98, calibrated_sim + 0.06 * overlap)
             x["reranker_score"] = float(min(0.98, max(0.72, 0.74 + 0.24 * min(1.0, (raw_rer - 0.35) / 0.40))))
         else:

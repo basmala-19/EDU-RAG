@@ -245,14 +245,16 @@ class VectorStore:
 
     @staticmethod
     def _lex_tokens(text: str) -> list[str]:
-        stop={"من","في","على","عن","إلى","الى","هو","هي","ما","ماذا","هل","و","أو","أن","إن","الذي","التي","the","a","an","of","to","in","on","is","are","what","how","and","or"}
-        raw=re.findall(r"[a-z0-9][a-z0-9_./+\-]*|[\u0600-\u06FF]+", (text or "").casefold())
-        out=[]
+        from src.infrastructure.ar_text import _MULTILINGUAL_STOP, repair_ocr_artifacts
+        cleaned = repair_ocr_artifacts(text or "")
+        cleaned = re.sub(r"[\u061F\u060C\u061B\u064B-\u065F\u0670?.,!;:()\[\]{}\"'/\\«»\-_~+=*#@%$^&|<>`]", " ", cleaned)
+        raw = re.findall(r"[a-z0-9][a-z0-9_./+\-]*|[\u0600-\u06FF]+", cleaned.casefold())
+        out = []
         for t in raw:
-            t=re.sub(r"[\u064B-\u065F\u0670]", "", t).replace("ـ", "")
-            t=normalize_ar_token(t)
-            if len(t)>1 and t not in stop:
-                out.append(t)
+            t = t.replace("ـ", "").strip()
+            norm = normalize_ar_token(t)
+            if len(norm) > 1 and norm not in _MULTILINGUAL_STOP and t not in _MULTILINGUAL_STOP:
+                out.append(norm)
         return out
 
     def query_questions(self, vector: np.ndarray, filters: dict[str, Any], top_k: int) -> list[dict[str, Any]]:

@@ -31,6 +31,16 @@ _NO_CITATION_MARKERS_INSTRUCTION = (
     "lesson\"), not with bracketed or symbolic markers."
 )
 
+_SYSTEM_PROMPT = (
+    "You are an expert educational curriculum tutor. Answer the student's question strictly from the provided curriculum Evidence.\n"
+    "- If the Evidence does not contain the answer, explicitly state that it is not covered.\n"
+    "- Never invent facts or hallucinate formulas outside the Evidence. Always reply in the language of the question.\n"
+    "- CRITICAL: Always focus on answering the latest 'Question' in the final message. If the student changes the topic or asks about a new concept (e.g. 'العدسات'), explain that new concept directly from the provided Evidence.\n"
+    "- Conversation history is only provided to resolve pronouns or follow-up references. Do NOT attempt to answer previous questions using the new Evidence."
+    + _STATUS_INSTRUCTION
+    + _NO_CITATION_MARKERS_INSTRUCTION
+)
+
 
 @dataclass
 class GenerationResult:
@@ -123,22 +133,14 @@ def _generate_with_openrouter(query: str, context: str, history: list[dict[str, 
     if not getattr(settings, "openrouter_api_key", None):
         raise RuntimeError("OPENROUTER_API_KEY is not configured")
         
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are an expert curriculum tutor. Answer the student's question strictly from the provided curriculum Evidence. "
-                "If the Evidence does not contain the answer, explicitly state that it is not covered. "
-                "Never invent facts or hallucinate formulas outside the Evidence. Always reply in the language of the question."
-                + _STATUS_INSTRUCTION
-                + _NO_CITATION_MARKERS_INSTRUCTION
-            ),
-        }
-    ]
+    messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
     for turn in history[-settings.max_session_turns:]:
         messages.append({"role": "user", "content": turn["user"]})
         messages.append({"role": "assistant", "content": turn["assistant"]})
-    messages.append({"role": "user", "content": f"Evidence:\n{context}\n\nQuestion:\n{query}"})
+    messages.append({
+        "role": "user",
+        "content": f"Curriculum Evidence:\n{context}\n\nCurrent Question to Answer from Evidence:\n{query}",
+    })
 
     payload = {
         "model": "google/gemini-2.5-flash" if "gemini" in str(getattr(settings, "groq_model", "")) else "meta-llama/llama-3.3-70b-instruct",
@@ -172,22 +174,14 @@ def _generate_with_groq(query: str, context: str, history: list[dict[str, str]],
     if not getattr(settings, "groq_api_key", None):
         raise RuntimeError("GROQ_API_KEY is not configured")
         
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are an expert curriculum tutor. Answer the student's question strictly from the provided curriculum Evidence. "
-                "If the Evidence does not contain the answer, explicitly state that it is not covered. "
-                "Never invent facts or hallucinate formulas outside the Evidence. Always reply in the language of the question."
-                + _STATUS_INSTRUCTION
-                + _NO_CITATION_MARKERS_INSTRUCTION
-            ),
-        }
-    ]
+    messages = [{"role": "system", "content": _SYSTEM_PROMPT}]
     for turn in history[-settings.max_session_turns:]:
         messages.append({"role": "user", "content": turn["user"]})
         messages.append({"role": "assistant", "content": turn["assistant"]})
-    messages.append({"role": "user", "content": f"Evidence:\n{context}\n\nQuestion:\n{query}"})
+    messages.append({
+        "role": "user",
+        "content": f"Curriculum Evidence:\n{context}\n\nCurrent Question to Answer from Evidence:\n{query}",
+    })
 
     payload = {
         "model": settings.groq_model,
@@ -228,6 +222,7 @@ def generate_with_ollama(query: str, context: str, history: list[dict[str, str]]
                 "أنت مدرس مساعد داخل منصة تعليمية. أجب اعتمادًا فقط على Evidence الموجود. "
                 "لو الإجابة غير موجودة في Evidence، قل بوضوح إن المعلومات غير كافية. "
                 "لا تخترع معلومات. أجب بنفس لغة السؤال. لا تعتبر Conversation History دليلًا علميًا؛ استخدمها فقط لفهم المتابعة. "
+                "أجب دائماً عن السؤال الحالي في الرسالة الأخيرة. لو الطالب غيّر الموضوع، اشرح الموضوع الجديد من الأدلة المتوفرة. "
                 "اكتب الإجابة كنص عادي واضح للطالب، من غير أي رموز أو علامات استشهاد أو أرقام مراجع بين قوسين "
                 "(زي 【Evidence 1†L2-L4】 أو [1] أو ما شابه). "
                 + _STATUS_INSTRUCTION
@@ -238,7 +233,10 @@ def generate_with_ollama(query: str, context: str, history: list[dict[str, str]]
     for turn in history[-settings.max_session_turns:]:
         messages.append({"role": "user", "content": turn["user"]})
         messages.append({"role": "assistant", "content": turn["assistant"]})
-    messages.append({"role": "user", "content": f"Evidence:\n{context}\n\nQuestion:\n{query}"})
+    messages.append({
+        "role": "user",
+        "content": f"Evidence:\n{context}\n\nCurrent Question to Answer from Evidence:\n{query}",
+    })
     payload = json.dumps({"model": settings.ollama_model, "messages": messages, "stream": False, "keep_alive": "5m", "format": "json"}, ensure_ascii=False).encode("utf-8")
     url = settings.ollama_base_url.rstrip("/") + "/api/chat"
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")

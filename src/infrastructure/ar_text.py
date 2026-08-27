@@ -32,7 +32,7 @@ _OCR_CHAR_MAP = str.maketrans({
 })
 
 # Multi-character prefix combinations (definite article "ال" alone or fused with prepositions)
-_PREFIXES = re.compile(r"^(?:وال|فال|بال|كال|لل|ال)(?=.{2,})")
+_PREFIXES = re.compile(r"^(?:وال|فال|بال|كال|لل|ال|و|ف)(?=.{2,})")
 
 # Safe Arabic suffix stripping applied only when stem >= 3 chars
 _SUFFIXES = re.compile(r"(?<=[\u0600-\u06FF]{3})(?:ات|ون|ين|ان|ها|هم|هن|نا|كم|تم|تك|يه|ية|ه|ي)$")
@@ -41,6 +41,7 @@ _SUFFIXES = re.compile(r"(?<=[\u0600-\u06FF]{3})(?:ات|ون|ين|ان|ها|هم
 _EN_SUFFIXES = re.compile(r"(?<=[a-z]{3})(?:'s|s|es|ed|ing)$")
 
 _TASHKEEL = re.compile(r"[\u064B-\u065F\u0670]")
+_PUNCTUATION = re.compile(r"[\u061F\u060C\u061B\u064B-\u065F\u0670?.,!;:()\[\]{}\"'/\\«»\-_~+=*#@%$^&|<>`]")
 
 _MULTILINGUAL_STOP = {
     # Arabic stopwords & question boilerplate
@@ -53,7 +54,8 @@ _MULTILINGUAL_STOP = {
     "عايز", "اعرف", "اديني", "ايه", "ليه", "ازاي", "فين", "مين", "بتاع", "بتاعة",
     "و", "أو", "او", "ثم", "ف", "بل", "لكن", "أن", "إن", "ان", "انها", "انه", "انهم",
     "كان", "كانت", "يكون", "تكون", "تم", "تمت", "يتم", "تعتبر", "يعتبر", "يعد", "تعد",
-    "قد", "لقد", "كل", "جميع", "بعض", "غير", "سوف", "سيتم",
+    "قد", "لقد", "كل", "جميع", "بعض", "غير", "سوف", "سيتم", "وفي", "وما", "وكيف", "ولماذا",
+    "عنها", "لها", "منها", "فيه", "فيها", "به", "بها", "لكل", "عند", "عندما",
     # English stopwords & question boilerplate
     "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from",
     "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
@@ -80,7 +82,7 @@ def normalize_ar_token(token: str) -> str:
     """Normalize a single token (Arabic, English, or mixed).
     
     1. Repairs OCR artifacts.
-    2. Removes diacritics / tashkeel and tatweel.
+    2. Removes diacritics / tashkeel and tatweel and punctuation.
     3. Collapses Arabic hamza / alef-maqsura / ta-marbuta variants.
     4. Strips attached prefixes (ال, وال, بال, لل...) and suffixes (ات, ون, ين, ها...).
     5. Handles English lowercasing and basic suffix trimming.
@@ -88,7 +90,7 @@ def normalize_ar_token(token: str) -> str:
     if not token:
         return ""
     t = repair_ocr_artifacts(token.casefold())
-    t = _TASHKEEL.sub("", t).replace("ـ", "")
+    t = _PUNCTUATION.sub("", t).replace("ـ", "")
     t = re.sub(r"[إأآٱ]", "ا", t)
     t = t.replace("ى", "ي").replace("ة", "ه")
     
@@ -98,7 +100,7 @@ def normalize_ar_token(token: str) -> str:
     t = _SUFFIXES.sub("", t)
     # Strip English suffixes if stem >= 3 chars
     t = _EN_SUFFIXES.sub("", t)
-    return t
+    return t.strip()
 
 
 def normalize_token(token: str) -> str:
@@ -109,13 +111,14 @@ def normalize_token(token: str) -> str:
 def extract_core_tokens(text: str) -> set[str]:
     """Extract informative, normalized root/stem tokens from Arabic, English, or mixed text.
     
-    Strips noise words, conversational question boilerplate, and short non-informative terms.
+    Strips noise words, conversational question boilerplate, punctuation, and short non-informative terms.
     """
     cleaned_text = repair_ocr_artifacts(text or "")
+    cleaned_text = _PUNCTUATION.sub(" ", cleaned_text)
     raw_tokens = re.findall(r"[a-z0-9][a-z0-9_./+\-]*|[\u0600-\u06FF]+", cleaned_text.casefold())
     out: set[str] = set()
     for raw in raw_tokens:
-        clean = _TASHKEEL.sub("", raw).replace("ـ", "")
+        clean = _TASHKEEL.sub("", raw).replace("ـ", "").strip()
         norm = normalize_token(clean)
         if len(norm) > 1 and norm not in _MULTILINGUAL_STOP and raw not in _MULTILINGUAL_STOP:
             out.add(norm)
