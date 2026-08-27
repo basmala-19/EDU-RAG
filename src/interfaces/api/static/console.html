@@ -6,6 +6,10 @@
 <title>Curriculum RAG — Interactive Testing & Evaluation Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js"></script>
 <style>
   :root {
     --navy: #17325C;
@@ -149,13 +153,20 @@
   .msg-row.assistant { align-self: flex-start; }
 
   .msg-bubble {
-    padding: 12px 16px; border-radius: 16px; font-size: 13px; line-height: 1.6;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; word-break: break-word; white-space: pre-wrap;
+    padding: 14px 18px; border-radius: 16px; font-size: 13.5px; line-height: 1.65;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; word-break: break-word;
   }
+  .msg-bubble-content p { margin-bottom: 8px; }
+  .msg-bubble-content p:last-child { margin-bottom: 0; }
+  .msg-bubble-content ul, .msg-bubble-content ol { margin: 6px 0 10px 22px; }
+  .msg-bubble-content li { margin-bottom: 4px; }
+  .msg-bubble-content strong { font-weight: 700; color: var(--navy); }
+  .msg-bubble-content .katex-display { margin: 8px 0; overflow-x: auto; }
   .msg-row.user .msg-bubble {
     background: linear-gradient(135deg, var(--purple), var(--purple2)); color: #fff;
     border-bottom-right-radius: 4px;
   }
+  .msg-row.user .msg-bubble-content strong { color: #fff; }
   .msg-row.assistant .msg-bubble {
     background: #fff; border: 1.5px solid var(--border-color); color: var(--navy-dark);
     border-bottom-left-radius: 4px;
@@ -393,7 +404,9 @@
     <div id="chat-log">
       <div class="msg-row assistant">
         <div class="msg-bubble">
+          <div class="msg-bubble-content">
 Welcome to Curriculum RAG! Upload any curriculum book on the left panel or choose an existing indexed book, then ask your question below. Answers are strictly grounded in retrieved evidence with exact page citations and live RAGAS evaluation.
+          </div>
         </div>
       </div>
     </div>
@@ -614,7 +627,7 @@ alphaSlider.addEventListener('input', () => { alphaVal.textContent = alphaSlider
 
 document.getElementById('new-session-btn').addEventListener('click', () => {
   sessionId = null;
-  chatLog.innerHTML = `<div class="msg-row assistant"><div class="msg-bubble">New session started! Ask any question about your curriculum document.</div></div>`;
+  chatLog.innerHTML = `<div class="msg-row assistant"><div class="msg-bubble"><div class="msg-bubble-content">New session started! Ask any question about your curriculum document.</div></div></div>`;
 });
 
 async function uploadFile(file) {
@@ -743,11 +756,29 @@ async function sendQuery() {
   }
 }
 
+function formatMessageContent(text) {
+  if (!text) return '';
+  let cleaned = text
+    .replace(/\\\(([^\)]+?)\\\)/g, '$$$1$$')
+    .replace(/\(([\\a-zA-Z0-9_\^\+\-\*\/\s={}\.]+?\\frac[^\)]+?)\\\)/g, '$$$1$$')
+    .replace(/\(([a-zA-Z]\s*=\s*\\[a-zA-Z]+[^\)]*?)\\\)/g, '$$$1$$');
+  
+  if (window.marked) {
+    try {
+      return marked.parse(cleaned);
+    } catch(e) {
+      console.warn('Marked parse error:', e);
+    }
+  }
+  return cleaned.replace(/\n/g, '<br>');
+}
+
 function appendMessage(role, text, data = null) {
   const row = document.createElement('div');
   row.className = `msg-row ${role}`;
   
-  let html = `<div class="msg-bubble">${text}`;
+  const parsedContent = formatMessageContent(text);
+  let html = `<div class="msg-bubble"><div class="msg-bubble-content">${parsedContent}</div>`;
   
   if (role === 'assistant' && data && data.sources && data.sources.length) {
     const fileRef = data.file_reference_id || (activeFile ? activeFile.file_reference_id : '');
@@ -797,6 +828,23 @@ function appendMessage(role, text, data = null) {
   row.innerHTML = html;
   chatLog.appendChild(row);
   chatLog.scrollTop = chatLog.scrollHeight;
+
+  const bubbleEl = row.querySelector('.msg-bubble-content');
+  if (bubbleEl && window.renderMathInElement) {
+    try {
+      renderMathInElement(bubbleEl, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    } catch (e) {
+      console.warn('KaTeX render error:', e);
+    }
+  }
 }
 
 function jumpToEvidenceCard(idx) {
