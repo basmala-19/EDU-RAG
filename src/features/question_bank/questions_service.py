@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from .config import get_llm_model, get_question_counts_by_difficulty
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -270,9 +273,15 @@ def generate_questions_from_knowledge_graph(
 
         destination = subject_dir / f"{_safe_path_part(topic_id)}.json"
         if destination.exists() and not overwrite:
+            logger.info(
+                "Topic '%s' (id=%s) already has a saved file at %s - skipping generation, reusing it as-is. "
+                "Pass overwrite=True to regenerate.",
+                topic_name, topic_id, destination,
+            )
             saved_paths.append(destination)
             continue
 
+        logger.info("Retrieving RAG evidence for topic '%s' (id=%s)", topic_name, topic_id)
         retrieved = retrieve(topic_name)
         if not isinstance(retrieved, dict):
             raise TypeError(f"Retriever must return an object for topic '{topic_name}'.")
@@ -284,10 +293,12 @@ def generate_questions_from_knowledge_graph(
             graph_context=_direct_graph_context(graph, topic_id),
             question_counts=question_counts,
         )
+        logger.info("Calling LLM (%s) to generate questions for topic '%s'", selected_model, topic_name)
         raw_response = generate(selected_model, prompt)
         if not isinstance(raw_response, str):
             raise TypeError(f"Generator must return text for topic '{topic_name}'.")
         generated_questions = _parse_questions(raw_response)
+        logger.info("LLM returned %d question(s) for topic '%s'", len(generated_questions), topic_name)
 
         topic_metadata = {
             "grade": grade.strip(),
@@ -340,19 +351,29 @@ def get_questions(grade: str, subject: str, topic: str, *, output_root: str | Pa
 
     subject_dir = Path(output_root) / _safe_path_part(grade) / _safe_path_part(subject)
     if not subject_dir.is_dir():
+        logger.info("No saved question directory yet for grade=%s subject=%s (%s)", grade, subject, subject_dir)
         return []
 
     matches: list[dict[str, Any]] = []
     wanted = topic.strip().casefold()
+    available: list[str] = []
     for file_path in subject_dir.glob("*.json"):
         document = json.loads(file_path.read_text(encoding="utf-8"))
         metadata = document.get("metadata", {})
         topic_info = metadata.get("topic", {}) if isinstance(metadata, dict) else {}
-        candidates = {str(topic_info.get("id", "")).casefold(), str(topic_info.get("name", "")).casefold()}
+        topic_id = str(topic_info.get("id", ""))
+        topic_display_name = str(topic_info.get("name", ""))
+        available.append(f"{topic_id!r}/{topic_display_name!r}")
+        candidates = {topic_id.casefold(), topic_display_name.casefold()}
         if wanted not in candidates:
             continue
         questions = document.get("questions", [])
         if not isinstance(questions, list):
             raise ValueError(f"Invalid question document: {file_path}")
         matches.extend(questions)
+    if not matches:
+        logger.info(
+            "No file matched topic=%r under %s. Saved topic id/name pairs found: %s",
+            topic, subject_dir, available or "(none)",
+        )
     return matches
