@@ -162,6 +162,50 @@ def _direct_graph_context(graph: dict[str, Any], topic_id: str) -> dict[str, lis
     return context
 
 
+def _validate_generated_question(question: dict[str, Any], *, topic_name: str) -> None:
+    """Raise a clear, specific error the moment a generated question doesn't
+    match the schema pinned in _build_prompt - catching an LLM schema
+    deviation here (at generation time) instead of leaving it to surface
+    later as a confusing 'missing coverage' error when starting an exam."""
+    text = question.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError(f"Topic '{topic_name}': a generated question is missing a non-empty 'text' string.")
+
+    options = question.get("options")
+    if not isinstance(options, dict) or len(options) < 2:
+        raise ValueError(
+            f"Topic '{topic_name}': question {text!r} is missing a valid 'options' object "
+            f"(got {options!r}). The LLM must return multiple-choice options."
+        )
+
+    question_type = question.get("question_type")
+    if question_type not in ("MCQ", "MSQ"):
+        raise ValueError(
+            f"Topic '{topic_name}': question {text!r} has question_type={question_type!r}, expected 'MCQ' or 'MSQ'."
+        )
+
+    answer = question.get("answer")
+    option_keys = set(options)
+    if question_type == "MCQ":
+        if not isinstance(answer, str) or answer not in option_keys:
+            raise ValueError(
+                f"Topic '{topic_name}': question {text!r} has answer={answer!r}, "
+                f"expected one of the option keys {sorted(option_keys)}."
+            )
+    else:  # MSQ
+        if not isinstance(answer, list) or not answer or not set(answer).issubset(option_keys):
+            raise ValueError(
+                f"Topic '{topic_name}': question {text!r} has answer={answer!r}, "
+                f"expected a non-empty list of option keys from {sorted(option_keys)}."
+            )
+
+    task_difficulty = question.get("task_difficulty")
+    if task_difficulty not in (1, 2, 3, 4, 5):
+        raise ValueError(
+            f"Topic '{topic_name}': question {text!r} has task_difficulty={task_difficulty!r}, expected an int 1-5."
+        )
+
+
 def _build_prompt(
     *,
     grade: str,
@@ -195,8 +239,30 @@ about the stated Topic, not a different related topic):
 
 Use only the retrieved material below as the knowledge source. Generate
 questions only about the stated Topic; prerequisite and subtopic material is
-context, not a separate target. Return JSON only, in this exact shape:
-{{"questions": [{{...}}]}}
+context, not a separate target.
+
+Every question MUST be multiple-choice - never open-ended/free-response.
+Return JSON only, no prose before or after, in exactly this shape:
+{{
+  "questions": [
+    {{
+      "text": "<the question text>",
+      "options": {{"A": "<choice text>", "B": "<choice text>", "C": "<choice text>", "D": "<choice text>"}},
+      "answer": "B",
+      "question_type": "MCQ",
+      "task_difficulty": 1,
+      "justification": "<why this is the correct answer, one or two sentences>"
+    }}
+  ]
+}}
+Rules for every question object, no exceptions:
+- "options" must have exactly 4 entries for "MCQ" keyed "A".."D", or exactly
+  4-6 entries for "MSQ" (multi-select) keyed the same way.
+- "answer" for "MCQ" is a single option key (e.g. "B"). "answer" for "MSQ" is
+  a JSON array of option keys (e.g. ["A", "C"]). Never leave "answer" empty.
+- "question_type" is exactly "MCQ" or "MSQ" - use "MSQ" only when more than
+  one option is genuinely correct.
+- Do not include any field names other than the ones shown above.
 
 Retrieved topic material:
 {json.dumps(subtree, ensure_ascii=False)}
@@ -299,6 +365,8 @@ def generate_questions_from_knowledge_graph(
             raise TypeError(f"Generator must return text for topic '{topic_name}'.")
         generated_questions = _parse_questions(raw_response)
         logger.info("LLM returned %d question(s) for topic '%s'", len(generated_questions), topic_name)
+        for generated_question in generated_questions:
+            _validate_generated_question(generated_question, topic_name=topic_name)
 
         topic_metadata = {
             "grade": grade.strip(),

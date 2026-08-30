@@ -77,27 +77,30 @@ def _normalize_question(
     question never blocks generating an exam for the rest of a topic.
     """
     question_id = raw.get("id")
-    text = _first_present(raw, "text", "question_text", "prompt")
-    options = _first_present(raw, "options", "choices")
-    answer = _first_present(raw, "answer", "correct_answer")
+    nested_question = raw.get("question") if isinstance(raw.get("question"), dict) else {}
+    text = _first_present(nested_question, "text", "question_text", "prompt", "stem") or \
+        _first_present(raw, "text", "question_text", "prompt", "question", "stem")
+    options = _first_present(nested_question, "options", "choices") or \
+        _first_present(raw, "options", "choices", "answer_options", "answer_choices")
+    answer = _first_present(raw, "answer", "correct_answer", "correct_option", "correct")
     task_difficulty = raw.get("task_difficulty")
 
     if not isinstance(question_id, str) or not question_id.strip():
-        logger.warning("Skipping question with no 'id' in %s (topic=%s)", source_file, topic_name)
+        logger.warning("Skipping question with no 'id' in %s (topic=%s). Keys present: %s", source_file, topic_name, sorted(raw.keys()))
         return None
     if not isinstance(text, str) or not text.strip():
-        logger.warning("Skipping question %s: no usable question text (%s)", question_id, source_file)
+        logger.warning("Skipping question %s: no usable question text (%s). Keys present: %s", question_id, source_file, sorted(raw.keys()))
         return None
     if not isinstance(options, dict) or not options:
-        logger.warning("Skipping question %s: no usable 'options' object (%s)", question_id, source_file)
+        logger.warning("Skipping question %s: no usable 'options' object (%s). Keys present: %s", question_id, source_file, sorted(raw.keys()))
         return None
     if answer is None:
-        logger.warning("Skipping question %s: no usable 'answer' (%s)", question_id, source_file)
+        logger.warning("Skipping question %s: no usable 'answer' (%s). Keys present: %s", question_id, source_file, sorted(raw.keys()))
         return None
     if task_difficulty not in TASK_DIFFICULTY_TO_LEVEL:
         logger.warning(
-            "Skipping question %s: task_difficulty=%r is not an int 1-5 (%s)",
-            question_id, task_difficulty, source_file,
+            "Skipping question %s: task_difficulty=%r is not an int 1-5 (%s). Keys present: %s",
+            question_id, task_difficulty, source_file, sorted(raw.keys()),
         )
         return None
 

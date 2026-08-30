@@ -19,7 +19,7 @@ import streamlit as st
 
 from src.features.assessment.application.assessment_service import get_assessment_service
 from src.features.knowledge_graph.application.graph_service import KnowledgeGraphService
-from src.features.question_bank import generate_questions_from_knowledge_graph, get_graph_entities, get_questions
+from src.features.question_bank import book_library, generate_questions_from_knowledge_graph, get_graph_entities, get_questions
 from src.features.question_bank.config import (
     get_llm_model,
     get_openrouter_api_key,
@@ -102,111 +102,160 @@ def render() -> None:
         except RuntimeError:
             st.warning("OPENROUTER_API_KEY is missing. Copy .env.example to .env and add the key before generation.")
 
-    st.header("1. Upload & process book")
-    st.caption(
-        "Uploading runs the whole pipeline automatically: Knowledge Graph -> RAG indexing "
-        "(chunking, embedding, vector store) -> question generation for every topic in the graph. "
-        "Once it finishes, the system is ready to run an exam - no extra manual steps."
+    st.header("1. Choose a book")
+
+    library_books = book_library.list_books()
+    UPLOAD_NEW_LABEL = "📤 Upload a new book"
+    book_options = [UPLOAD_NEW_LABEL] + [
+        f"{b['filename']} — {b['grade']} / {b['subject']} "
+        f"({b['topics_generated']} topics, {b['entity_count']} entities)"
+        for b in library_books
+    ]
+    selected_book_label = st.selectbox(
+        "Use an already-processed book, or upload a new one",
+        options=book_options,
     )
-    uploaded_pdf = st.file_uploader("Book PDF", type=["pdf"])
-    grade = st.text_input("Grade", placeholder="Example: Grade 5")
-    subject = st.text_input("Subject", placeholder="Example: Mathematics")
+    using_existing_book = selected_book_label != UPLOAD_NEW_LABEL
 
-    graph_source: dict | Path | None = st.session_state.rag_knowledge_graph
-    with st.expander("Advanced: overrides"):
-        manual_file_reference_id = st.text_input(
-            "Existing RAG file_reference_id (skip re-indexing)",
-            value=st.session_state.rag_file_reference_id,
-            placeholder="Paste an already indexed file_reference_id",
+    if using_existing_book:
+        selected_book = library_books[book_options.index(selected_book_label) - 1]
+        if st.session_state.rag_file_reference_id != selected_book["rag_file_reference_id"]:
+            logger.info(
+                "Selected existing book from library: '%s' (grade=%s subject=%s)",
+                selected_book["filename"], selected_book["grade"], selected_book["subject"],
+            )
+            st.session_state.rag_file_reference_id = selected_book["rag_file_reference_id"]
+            st.session_state.rag_knowledge_graph = selected_book["knowledge_graph"]
+            st.session_state.rag_knowledge_graph_source_name = selected_book["filename"]
+        grade = selected_book["grade"]
+        subject = selected_book["subject"]
+        st.success(
+            f"Using **{selected_book['filename']}** — {grade} / {subject}. "
+            f"Processed {selected_book['processed_at'][:10]}. Ready to run an exam below."
         )
-        if manual_file_reference_id.strip() != st.session_state.rag_file_reference_id:
-            st.session_state.rag_file_reference_id = manual_file_reference_id.strip()
+        st.caption(f"file_reference_id: `{selected_book['rag_file_reference_id']}`")
+        graph_source: dict | Path | None = st.session_state.rag_knowledge_graph
+    else:
+        st.subheader("Upload & process book")
+        st.caption(
+            "Uploading runs the whole pipeline automatically: Knowledge Graph -> RAG indexing "
+            "(chunking, embedding, vector store) -> question generation for every topic in the graph. "
+            "Once it finishes, the system is ready to run an exam - no extra manual steps."
+        )
+        uploaded_pdf = st.file_uploader("Book PDF", type=["pdf"])
+        grade = st.text_input("Grade", placeholder="Example: Grade 5")
+        subject = st.text_input("Subject", placeholder="Example: Mathematics")
 
-        graph_upload = st.file_uploader("Knowledge Graph (JSON) - use instead of auto-generating", type=["json"])
-        if graph_upload is not None:
+        graph_source: dict | Path | None = st.session_state.rag_knowledge_graph
+        with st.expander("Advanced: overrides"):
+            manual_file_reference_id = st.text_input(
+                "Existing RAG file_reference_id (skip re-indexing)",
+                value=st.session_state.rag_file_reference_id,
+                placeholder="Paste an already indexed file_reference_id",
+            )
+            if manual_file_reference_id.strip() != st.session_state.rag_file_reference_id:
+                st.session_state.rag_file_reference_id = manual_file_reference_id.strip()
+
+            graph_upload = st.file_uploader("Knowledge Graph (JSON) - use instead of auto-generating", type=["json"])
+            if graph_upload is not None:
+                try:
+                    graph_source = json.loads(graph_upload.getvalue().decode("utf-8"))
+                    st.caption("Using the uploaded JSON instead of the auto-generated graph for this run.")
+                except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                    st.error(f"Invalid Knowledge Graph JSON: {exc}")
+            if graph_source is None and DEFAULT_GRAPH is not None:
+                graph_source = DEFAULT_GRAPH
+
+        can_process = bool(uploaded_pdf is not None and grade.strip() and subject.strip())
+        if st.button("Process book", type="primary", disabled=not can_process):
             try:
-                graph_source = json.loads(graph_upload.getvalue().decode("utf-8"))
-                st.caption("Using the uploaded JSON instead of the auto-generated graph for this run.")
-            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                st.error(f"Invalid Knowledge Graph JSON: {exc}")
-        if graph_source is None and DEFAULT_GRAPH is not None:
-            graph_source = DEFAULT_GRAPH
+                get_openrouter_api_key()
+                logger.info("Saving uploaded file '%s' to disk", uploaded_pdf.name)
+                pdf_path = save_uploaded_file(uploaded_pdf)
+                content_hash = book_library.hash_file(pdf_path)
 
-    can_process = bool(uploaded_pdf is not None and grade.strip() and subject.strip())
-    if st.button("Process book", type="primary", disabled=not can_process):
-        try:
-            get_openrouter_api_key()
-            logger.info("Saving uploaded file '%s' to disk", uploaded_pdf.name)
-            pdf_path = save_uploaded_file(uploaded_pdf)
+                # --- Step 1/3: Knowledge Graph -----------------------------
+                # Skipped if the Advanced override above already supplied a
+                # graph for this run - no need to regenerate one from the PDF.
+                if isinstance(graph_source, dict):
+                    logger.info("Step 1/3: using the manually supplied Knowledge Graph override (skipping auto-generation)")
+                    active_graph = graph_source
+                    st.session_state.rag_knowledge_graph = active_graph
+                    st.session_state.rag_knowledge_graph_source_name = pdf_path.name
+                else:
+                    logger.info("Step 1/3: generating Knowledge Graph from '%s'", pdf_path.name)
+                    kg_status = st.status("Step 1/3 — Building Knowledge Graph...", expanded=True)
+                    kg_result = get_knowledge_graph_service().generate_from_pdf(pdf_path)
+                    active_graph = kg_result.graph
+                    content_hash = kg_result.content_hash
+                    st.session_state.rag_knowledge_graph = active_graph
+                    st.session_state.rag_knowledge_graph_source_name = kg_result.source_file_name
+                    cache_note = " (reused cached graph)" if kg_result.cached else ""
+                    kg_status.update(
+                        label=f"Step 1/3 — Knowledge Graph ready: {kg_result.entity_count} entities{cache_note}",
+                        state="complete", expanded=False,
+                    )
 
-            # --- Step 1/3: Knowledge Graph -----------------------------
-            # Skipped if the Advanced override above already supplied a
-            # graph for this run - no need to regenerate one from the PDF.
-            if isinstance(graph_source, dict):
-                logger.info("Step 1/3: using the manually supplied Knowledge Graph override (skipping auto-generation)")
-                active_graph = graph_source
-                st.session_state.rag_knowledge_graph = active_graph
-                st.session_state.rag_knowledge_graph_source_name = pdf_path.name
-            else:
-                logger.info("Step 1/3: generating Knowledge Graph from '%s'", pdf_path.name)
-                kg_status = st.status("Step 1/3 — Building Knowledge Graph...", expanded=True)
-                kg_result = get_knowledge_graph_service().generate_from_pdf(pdf_path)
-                active_graph = kg_result.graph
-                st.session_state.rag_knowledge_graph = active_graph
-                st.session_state.rag_knowledge_graph_source_name = kg_result.source_file_name
-                cache_note = " (reused cached graph)" if kg_result.cached else ""
-                kg_status.update(
-                    label=f"Step 1/3 — Knowledge Graph ready: {kg_result.entity_count} entities{cache_note}",
+                # --- Step 2/3: RAG indexing --------------------------------
+                logger.info("Step 2/3: indexing '%s' into the shared RAG (chunking, embedding, vector upsert)", pdf_path.name)
+                rag_status = st.status("Step 2/3 — Indexing book into RAG...", expanded=True)
+                index_result = get_rag().index_file(pdf_path)
+                file_reference_id = str(index_result.get("file_reference_id") or "").strip()
+                if not file_reference_id:
+                    raise RuntimeError("RAG indexing completed without returning file_reference_id.")
+                st.session_state.rag_file_reference_id = file_reference_id
+                indexed_chunks = index_result.get("indexed_chunks", index_result.get("chunks_created", 0))
+                rag_status.update(
+                    label=f"Step 2/3 — RAG indexed: {indexed_chunks} chunk(s) (file_reference_id={file_reference_id})",
                     state="complete", expanded=False,
                 )
 
-            # --- Step 2/3: RAG indexing --------------------------------
-            logger.info("Step 2/3: indexing '%s' into the shared RAG (chunking, embedding, vector upsert)", pdf_path.name)
-            rag_status = st.status("Step 2/3 — Indexing book into RAG...", expanded=True)
-            index_result = get_rag().index_file(pdf_path)
-            file_reference_id = str(index_result.get("file_reference_id") or "").strip()
-            if not file_reference_id:
-                raise RuntimeError("RAG indexing completed without returning file_reference_id.")
-            st.session_state.rag_file_reference_id = file_reference_id
-            indexed_chunks = index_result.get("indexed_chunks", index_result.get("chunks_created", 0))
-            rag_status.update(
-                label=f"Step 2/3 — RAG indexed: {indexed_chunks} chunk(s) (file_reference_id={file_reference_id})",
-                state="complete", expanded=False,
-            )
+                # --- Step 3/3: generate questions for every topic ----------
+                logger.info("Step 3/3: generating questions for every topic in the Knowledge Graph")
+                qb_status = st.status("Step 3/3 — Generating questions for every topic...", expanded=True)
 
-            # --- Step 3/3: generate questions for every topic ----------
-            logger.info("Step 3/3: generating questions for every topic in the Knowledge Graph")
-            qb_status = st.status("Step 3/3 — Generating questions for every topic...", expanded=True)
+                def logged_retriever(topic: str):
+                    logger.info("Retrieving evidence for topic '%s'", topic)
+                    return get_rag().retrieve_topic(topic, file_reference_id)
 
-            def logged_retriever(topic: str):
-                logger.info("Retrieving evidence for topic '%s'", topic)
-                return get_rag().retrieve_topic(topic, file_reference_id)
+                saved_paths = generate_questions_from_knowledge_graph(
+                    active_graph,
+                    grade,
+                    subject,
+                    rag_file_reference_id=file_reference_id,
+                    retriever=logged_retriever,
+                    # entity_ids intentionally omitted: process every topic in the graph.
+                )
+                qb_status.update(
+                    label=f"Step 3/3 — Questions saved for {len(saved_paths)} topic(s)",
+                    state="complete", expanded=False,
+                )
 
-            saved_paths = generate_questions_from_knowledge_graph(
-                active_graph,
-                grade,
-                subject,
-                rag_file_reference_id=file_reference_id,
-                retriever=logged_retriever,
-                # entity_ids intentionally omitted: process every topic in the graph.
-            )
-            qb_status.update(
-                label=f"Step 3/3 — Questions saved for {len(saved_paths)} topic(s)",
-                state="complete", expanded=False,
-            )
-
-            logger.info(
-                "Book processing complete: entities=%d indexed_chunks=%s topics_with_questions=%d",
-                len(active_graph.get("entities", [])), indexed_chunks, len(saved_paths),
-            )
-            st.success(
-                f"Book processed end-to-end: Knowledge Graph ({len(active_graph.get('entities', []))} entities), "
-                f"RAG indexed ({indexed_chunks} chunks), questions saved for {len(saved_paths)} topic(s). "
-                "Ready to run an exam below."
-            )
-        except Exception as exc:
-            logger.error("Book processing failed: %s", exc)
-            st.error(f"Book processing failed: {exc}")
+                entity_count = len(active_graph.get("entities", []))
+                book_library.register_book(
+                    content_hash=content_hash,
+                    filename=pdf_path.name,
+                    grade=grade,
+                    subject=subject,
+                    rag_file_reference_id=file_reference_id,
+                    indexed_chunks=indexed_chunks,
+                    knowledge_graph=active_graph,
+                    entity_count=entity_count,
+                    topics_generated=len(saved_paths),
+                )
+                logger.info(
+                    "Book processing complete: entities=%d indexed_chunks=%s topics_with_questions=%d "
+                    "(added to library, content_hash=%s)",
+                    entity_count, indexed_chunks, len(saved_paths), content_hash,
+                )
+                st.success(
+                    f"Book processed end-to-end: Knowledge Graph ({entity_count} entities), "
+                    f"RAG indexed ({indexed_chunks} chunks), questions saved for {len(saved_paths)} topic(s). "
+                    "Saved to the book library above - ready to run an exam below."
+                )
+            except Exception as exc:
+                logger.error("Book processing failed: %s", exc)
+                st.error(f"Book processing failed: {exc}")
 
     if st.session_state.rag_file_reference_id:
         st.info(f"Active RAG file_reference_id: `{st.session_state.rag_file_reference_id}`")
