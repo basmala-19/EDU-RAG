@@ -29,6 +29,7 @@ dependencies = [
   "semantica-graph",
   "sentence-transformers>=3.2",
   "streamlit>=1.40.0",
+  "uvicorn[standard]>=0.30",
 ]
 
 [tool.uv]

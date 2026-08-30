@@ -543,6 +543,31 @@ class AssessmentService:
     def handle_timeout(self, exam_id: str, question_id: str) -> Dict[str, Any]:
         return self.process_answer(exam_id, question_id, student_answer=None)
 
+    # -------------------------------------------------------------
+    def get_exam_state(self, exam_id: str) -> Dict[str, Any]:
+        """Read-only lookup for GET /exams/{exam_id}: lets a client that
+        reopened the app (or just wants to poll) find out where an exam
+        currently stands without submitting an answer and without mutating
+        any state - unlike process_answer, this never advances the session."""
+        session = self.store.get(exam_id)
+        if session is None:
+            raise ValueError(f"Unknown exam_id: {exam_id}")
+
+        if session.is_finished:
+            return {
+                "status": "exam_ended",
+                "exam_id": session.exam_id,
+                "results": _topic_results_summary(session, session.bank),
+            }
+
+        question = session.bank.get_by_id(session.current_question_id)
+        return {
+            "status": "in_progress",
+            "exam_id": session.exam_id,
+            "question": self._public_question(question),
+            "question_timeout_seconds": get_question_timeout_seconds(),
+        }
+
     def get_report(self, exam_id: str) -> str:
         session = self.store.get(exam_id)
         if session is None:
