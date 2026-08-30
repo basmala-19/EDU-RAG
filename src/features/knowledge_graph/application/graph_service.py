@@ -15,8 +15,8 @@ from pathlib import Path
 
 from src.features.knowledge_graph.domain.schemas import GenerateGraphResult
 from src.features.knowledge_graph.infrastructure.config import get_llm_model, get_storage_dir
+from src.features.knowledge_graph.infrastructure.graph_extractor import LLMGraphExtractor
 from src.features.knowledge_graph.infrastructure.graph_registry import GraphRegistry
-from src.features.knowledge_graph.infrastructure.semantica_graph_client import SemanticaGraphClient
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class KnowledgeGraphService:
     def __init__(self, *, storage_dir: str | Path | None = None) -> None:
         self.storage_dir = Path(storage_dir) if storage_dir else get_storage_dir()
         self.registry = GraphRegistry(self.storage_dir / "registry.json")
-        self.client = SemanticaGraphClient()
+        self.client = LLMGraphExtractor()
 
     def generate_from_pdf(
         self,
@@ -72,7 +72,7 @@ class KnowledgeGraphService:
             self.registry.register(content_hash, {"graph_json_path": str(json_path), "source_file_name": path.name})
         else:
             logger.warning(
-                "semantica_graph did not produce a *_graph.json file in %s; "
+                "Graph extraction did not produce a *_graph.json file in %s; "
                 "the graph was still returned but will not be cached.",
                 request_dir,
             )

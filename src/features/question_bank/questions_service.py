@@ -162,6 +162,21 @@ def _direct_graph_context(graph: dict[str, Any], topic_id: str) -> dict[str, lis
     return context
 
 
+def _normalize_generated_question(question: dict[str, Any]) -> None:
+    """Repair a common, harmless LLM schema slip in-place before validation:
+    the model marks a question as 'MSQ' but returns a single option key as a
+    bare string for 'answer' (only one correct option). That means the
+    question is really an MCQ, so we relabel it rather than wrapping the
+    answer in a one-item list, which would still violate MSQ's "two or more
+    correct options" rule. This must run before _validate_generated_question."""
+    if (
+        question.get("question_type") == "MSQ"
+        and isinstance(question.get("answer"), str)
+        and question["answer"].strip()
+    ):
+        question["question_type"] = "MCQ"
+
+
 def _validate_generated_question(question: dict[str, Any], *, topic_name: str) -> None:
     """Raise a clear, specific error the moment a generated question doesn't
     match the schema pinned in _build_prompt - catching an LLM schema
@@ -193,10 +208,15 @@ def _validate_generated_question(question: dict[str, Any], *, topic_name: str) -
                 f"expected one of the option keys {sorted(option_keys)}."
             )
     else:  # MSQ
-        if not isinstance(answer, list) or not answer or not set(answer).issubset(option_keys):
+        if (
+            not isinstance(answer, list)
+            or len(answer) < 2
+            or len(set(answer)) != len(answer)
+            or not set(answer).issubset(option_keys)
+        ):
             raise ValueError(
                 f"Topic '{topic_name}': question {text!r} has answer={answer!r}, "
-                f"expected a non-empty list of option keys from {sorted(option_keys)}."
+                f"expected a list of 2+ distinct option keys from {sorted(option_keys)}."
             )
 
     task_difficulty = question.get("task_difficulty")
@@ -242,7 +262,9 @@ questions only about the stated Topic; prerequisite and subtopic material is
 context, not a separate target.
 
 Every question MUST be multiple-choice - never open-ended/free-response.
-Return JSON only, no prose before or after, in exactly this shape:
+Return JSON only, no prose before or after, in exactly this shape. This shows
+one MCQ example and one MSQ example - follow each one's format exactly for
+its own "question_type", do not mix them:
 {{
   "questions": [
     {{
@@ -252,17 +274,35 @@ Return JSON only, no prose before or after, in exactly this shape:
       "question_type": "MCQ",
       "task_difficulty": 1,
       "justification": "<why this is the correct answer, one or two sentences>"
+    }},
+    {{
+      "text": "<a different question text>",
+      "options": {{"A": "<choice text>", "B": "<choice text>", "C": "<choice text>", "D": "<choice text>"}},
+      "answer": ["A", "C"],
+      "question_type": "MSQ",
+      "task_difficulty": 2,
+      "justification": "<why these are the correct answers, one or two sentences>"
     }}
   ]
 }}
 Rules for every question object, no exceptions:
 - "options" must have exactly 4 entries for "MCQ" keyed "A".."D", or exactly
   4-6 entries for "MSQ" (multi-select) keyed the same way.
-- "answer" for "MCQ" is a single option key (e.g. "B"). "answer" for "MSQ" is
-  a JSON array of option keys (e.g. ["A", "C"]). Never leave "answer" empty.
-- "question_type" is exactly "MCQ" or "MSQ" - use "MSQ" only when more than
-  one option is genuinely correct.
+- "question_type" MUST be decided first, and it strictly determines the type
+  of "answer":
+  - If "question_type" is "MCQ": "answer" MUST be a single JSON string
+    containing exactly one option key, e.g. "answer": "B". It must NEVER be
+    a list/array, even a one-item one.
+  - If "question_type" is "MSQ": "answer" MUST be a JSON array containing
+    two or more option keys, e.g. "answer": ["A", "C"]. It must NEVER be a
+    bare string, and never an array with fewer than two items.
+- Default to "MCQ" for every question. Only use "MSQ" when at least two
+  options are genuinely, independently correct - which should be rare.
+- Never leave "answer" empty, null, or missing.
 - Do not include any field names other than the ones shown above.
+- Before outputting, re-check every question object: if "question_type" is
+  "MCQ", "answer" must be a plain string; if "MSQ", "answer" must be an
+  array of 2 or more strings. Fix any mismatch before returning the JSON.
 
 Retrieved topic material:
 {json.dumps(subtree, ensure_ascii=False)}
@@ -366,6 +406,7 @@ def generate_questions_from_knowledge_graph(
         generated_questions = _parse_questions(raw_response)
         logger.info("LLM returned %d question(s) for topic '%s'", len(generated_questions), topic_name)
         for generated_question in generated_questions:
+            _normalize_generated_question(generated_question)
             _validate_generated_question(generated_question, topic_name=topic_name)
 
         topic_metadata = {

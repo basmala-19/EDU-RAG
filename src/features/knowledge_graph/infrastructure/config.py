@@ -39,6 +39,33 @@ def get_openrouter_api_key() -> str:
     return api_key
 
 
+DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+def get_openrouter_base_url() -> str:
+    return os.getenv("OPENROUTER_BASE_URL", DEFAULT_OPENROUTER_BASE_URL).strip() or DEFAULT_OPENROUTER_BASE_URL
+
+
+DEFAULT_CHUNK_CHAR_BUDGET = 12_000
+
+
+def get_chunk_char_budget() -> int:
+    """Max characters of extracted PDF text sent to the LLM per entity-
+    extraction call. Keeps each call's prompt (and the model's context
+    window) bounded regardless of how long the source book is - see
+    ``infrastructure/graph_extractor.py``."""
+    raw = os.getenv("KNOWLEDGE_GRAPH_CHUNK_CHAR_BUDGET", "").strip()
+    if not raw:
+        return DEFAULT_CHUNK_CHAR_BUDGET
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"KNOWLEDGE_GRAPH_CHUNK_CHAR_BUDGET must be a whole number, got {raw!r}.") from exc
+    if value <= 0:
+        raise ValueError(f"KNOWLEDGE_GRAPH_CHUNK_CHAR_BUDGET must be > 0, got {value}.")
+    return value
+
+
 def get_storage_dir() -> Path:
     """Where generated graph JSON/HTML files and the cache registry live."""
     raw = os.getenv("KNOWLEDGE_GRAPH_STORAGE_DIR", "").strip()

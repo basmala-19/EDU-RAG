@@ -1,10 +1,13 @@
 """Shape of a generated knowledge graph, shared by every feature that consumes it.
 
-Kept permissive (``extra="allow"``) on entities/relationships because the
-graph is produced by an LLM through the external ``semantica_graph``
-package: the model may emit extra descriptive fields beyond the ones this
-project currently reads. Only the fields other features actually depend on
-(``id``, ``name`` for entities) are required.
+Produced by ``infrastructure/graph_extractor.py`` (a native LLM pipeline -
+see its module docstring). Kept permissive (``extra="allow"``) on
+entities/relationships since an LLM-produced entity may carry extra
+descriptive fields beyond the ones this project currently reads. Only the
+fields other features actually depend on are required: ``id``/``text`` for
+entities (``question_bank/questions_service.py`` reads
+``entity["text"]`` as the display name - not ``name``), and
+``source``/``target``/``type`` for relationships.
 """
 
 from __future__ import annotations
@@ -18,8 +21,8 @@ class GraphEntity(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(description="Stable identifier used to reference this entity elsewhere in the graph.")
-    name: str = Field(description="Human-readable entity/topic name.")
-    type: str | None = Field(default=None, description="Entity category, e.g. 'topic', 'concept'.")
+    text: str = Field(description="Human-readable entity/topic name.")
+    type: str | None = Field(default=None, description="Entity category, e.g. 'concept'.")
     description: str | None = Field(default=None, description="Short description of the entity.")
 
 
@@ -28,11 +31,11 @@ class GraphRelationship(BaseModel):
 
     source: str = Field(description="Entity id this relationship starts from.")
     target: str = Field(description="Entity id this relationship points to.")
-    type: str | None = Field(default=None, description="Relationship label, e.g. 'part_of', 'prerequisite_of'.")
+    type: str | None = Field(default=None, description="'subsetOf' or 'prerequisiteOf' - see graph_extractor.py.")
 
 
 class KnowledgeGraph(BaseModel):
-    """The parsed graph as returned by ``semantica_graph.get_graph``."""
+    """The parsed graph as returned by ``LLMGraphExtractor.generate``."""
 
     model_config = ConfigDict(extra="allow")
 

@@ -25,7 +25,32 @@ uv sync
 
 Copy `.env.example` to `.env` and set `OPENROUTER_API_KEY` (required for
 Knowledge Graph generation, question generation, and exam report
-generation) plus any other values you want to override.
+generation — `uv sync` is enough on its own, there is no separate package
+to install for Knowledge Graph generation) plus any other values you want
+to override.
+
+### How Knowledge Graph generation works
+
+Turning a new PDF into a Knowledge Graph (`POST /books`, or "Process book"
+in the Streamlit tool) is a native pipeline over the same OpenRouter LLM
+everything else in the app already calls — question generation, exam
+reports, etc. — not a separate package or service:
+
+1. Extract the PDF's text page by page.
+2. Split it into bounded chunks (`KNOWLEDGE_GRAPH_CHUNK_CHAR_BUDGET`
+   characters each, default 12,000) so one very long book is many bounded
+   LLM calls instead of one call that overflows the model's context window.
+3. One LLM call per chunk extracts the topics/concepts it covers.
+4. Topics are merged/deduped by name across all chunks and given stable ids.
+5. One further LLM call proposes `subsetOf`/`prerequisiteOf` relationships
+   between the merged topics.
+
+See `src/features/knowledge_graph/infrastructure/graph_extractor.py` for
+the implementation. An earlier version of this pipeline depended on an
+external `semantica_graph` package installed from a local path outside
+this repo — that attempt has been dropped in favor of the native pipeline
+above, so `uv sync` on a fresh machine no longer depends on anyone else's
+local folder existing.
 
 ## Running the Streamlit tool
 
