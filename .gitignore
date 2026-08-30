@@ -100,3 +100,10 @@ dist/
 *.db
 *.sqlite
 *.sqlite3
+
+data/knowledge_graph/
+
+test.ipynb
+
+part.pdf
+
